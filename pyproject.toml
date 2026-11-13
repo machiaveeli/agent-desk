@@ -1,0 +1,56 @@
+[project]
+name = "agent-desk"
+version = "0.1.0.dev0"
+description = "Terminal dashboard to browse and manage the local sessions, memory, and projects of AI coding CLIs."
+license = "MIT"
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.29.1",
+]
+
+[project.scripts]
+agent-desk = "agent_desk.cli.main:app"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/agent_desk"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "W",   # pycodestyle warnings
+    "F",   # pyflakes
+    "I",   # isort (import order)
+    "B",   # bugbear (likely bugs)
+    "UP",  # pyupgrade (modern syntax)
+    "SIM", # simplifications
+    "PTH", # prefer pathlib over os.path
+    "N",   # naming conventions
+    "RUF", # ruff-specific rules
+]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+files = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = ["--strict-markers", "--strict-config"]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[dependency-groups]
+dev = [
+    "mypy>=2.4.1",
+    "pytest>=9.2.0",
+    "ruff>=0.17.5",
+]
