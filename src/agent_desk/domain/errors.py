@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Literal
 
 type ConfigErrorReason = Literal[
@@ -13,3 +14,11 @@ class ConfigError:
     field: str | None
     reason: ConfigErrorReason
     detail: str
+
+
+@dataclass(frozen=True)
+class ProviderNotFound:
+    """The provider's root folder does not exist: the CLI is not installed or never ran."""
+
+    provider_id: str
+    root: Path
