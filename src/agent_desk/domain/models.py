@@ -40,8 +40,6 @@ class SessionSummary:
     title: str
     started_at: datetime | None
     ended_at: datetime | None
-    user_message_count: int
-    assistant_message_count: int
     first_prompt: str | None
     size_bytes: int
     invalid_line_count: int
@@ -49,14 +47,11 @@ class SessionSummary:
     def __post_init__(self) -> None:
         # A violation here is a bug in the provider, not an expected failure, so it raises.
         validate_time_range(self.started_at, self.ended_at)
-        counts = (
-            self.user_message_count,
-            self.assistant_message_count,
-            self.size_bytes,
-            self.invalid_line_count,
-        )
-        if min(counts) < 0:
-            raise ValueError(f"counts and sizes cannot be negative: {counts}")
+        if self.size_bytes < 0 or self.invalid_line_count < 0:
+            raise ValueError(
+                f"size ({self.size_bytes}) and invalid lines ({self.invalid_line_count}) "
+                "cannot be negative"
+            )
 
 
 @dataclass(frozen=True)
