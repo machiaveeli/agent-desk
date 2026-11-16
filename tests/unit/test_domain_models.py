@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -21,8 +22,8 @@ def make_session(sibling_dir: Path | None = None) -> Session:
     )
 
 
-def make_summary(**changes: object) -> SessionSummary:
-    fields: dict[str, object] = {
+def make_summary(**changes: Any) -> SessionSummary:
+    fields: dict[str, Any] = {
         "session": make_session(),
         "title": "A title",
         "started_at": EARLIER,
@@ -32,7 +33,7 @@ def make_summary(**changes: object) -> SessionSummary:
         "invalid_line_count": 0,
     }
     fields.update(changes)
-    return SessionSummary(**fields)  # type: ignore[arg-type]
+    return SessionSummary(**fields)
 
 
 def test_session_files_include_the_sibling_dir_when_it_exists() -> None:

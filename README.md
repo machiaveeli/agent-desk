@@ -43,7 +43,7 @@ Run the checks:
 ```sh
 uv run pytest
 uv run ruff check . && uv run ruff format --check .
-uv run mypy src
+uv run mypy
 ```
 
 ## Contributing
