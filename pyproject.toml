@@ -47,6 +47,8 @@ files = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Lets tests import the synthetic tree builders as `fixtures.*`.
+pythonpath = ["tests"]
 addopts = ["--strict-markers", "--strict-config"]
 xfail_strict = true
 filterwarnings = ["error"]
