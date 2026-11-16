@@ -6,10 +6,11 @@ from typing import Literal
 
 @dataclass(frozen=True)
 class Project:
-    """A folder of sessions kept by one provider.
+    """A working directory whose sessions one provider keeps in `storage_dir`.
 
-    `cwd` comes from inside the session files, never from the folder name. It is None when
-    no session reveals it, for example a folder that only holds memory.
+    `cwd` comes from inside the session files, never from the folder name. Two projects can
+    share a `storage_dir` when the provider encodes their cwds to the same folder name. `cwd` is
+    None when no session reveals it, for example a folder that only holds memory.
     """
 
     provider_id: str
