@@ -1,5 +1,6 @@
 from dataclasses import replace
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -50,7 +51,7 @@ def test_missing_file_returns_defaults(config_path: Path, home: Path) -> None:
     ids=["retention", "retention-zero", "codex-threshold"],
 )
 def test_file_overrides_only_the_fields_it_sets(
-    config_path: Path, home: Path, toml_text: str, changes: dict[str, int]
+    config_path: Path, home: Path, toml_text: str, changes: dict[str, Any]
 ) -> None:
     config_path.write_text(toml_text, encoding="utf-8")
 

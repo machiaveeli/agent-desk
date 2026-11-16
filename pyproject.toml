@@ -43,7 +43,9 @@ select = [
 [tool.mypy]
 strict = true
 python_version = "3.12"
-files = ["src"]
+files = ["src", "tests"]
+# Lets mypy resolve the `fixtures.*` imports the same way pytest does.
+mypy_path = "tests"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
