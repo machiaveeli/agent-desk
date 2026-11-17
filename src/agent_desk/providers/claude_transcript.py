@@ -4,11 +4,11 @@ from collections.abc import Iterator
 from pathlib import Path
 
 from agent_desk.domain.models import TranscriptEntry, TranscriptRole
+from agent_desk.domain.text import truncate
 from agent_desk.providers.claude_summary import (
     LOCAL_COMMAND_TAGS,
     read_block_text,
     read_text,
-    truncate,
 )
 from agent_desk.providers.jsonl import JsonObject, read_json_lines
 

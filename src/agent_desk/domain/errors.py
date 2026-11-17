@@ -22,3 +22,10 @@ class ProviderNotFound:
 
     provider_id: str
     root: Path
+
+
+@dataclass(frozen=True)
+class ProjectNotFound:
+    """No provider has a project whose cwd is this path."""
+
+    cwd: Path
