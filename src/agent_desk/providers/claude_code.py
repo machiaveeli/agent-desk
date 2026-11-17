@@ -1,16 +1,23 @@
+import json
+from collections.abc import Callable
 from contextlib import closing
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_desk.config import CLAUDE_PROVIDER_ID
 from agent_desk.domain.errors import ProviderNotFound
-from agent_desk.domain.models import Project, SessionSummary
+from agent_desk.domain.models import Project, Session, SessionSummary
 from agent_desk.providers.claude_summary import read_cwd, summarize_session
 from agent_desk.providers.jsonl import read_json_lines
+from agent_desk.providers.processes import ProcessState, inspect_process
 
 PROJECTS_DIR_NAME = "projects"
 SESSION_FILE_PATTERN = "*.jsonl"
+SESSIONS_DIR_NAME = "sessions"
+# Only `<pid>.json`. The `<pid>.<hash>.key` files beside them look like secrets, so they are
+# never opened, not even to find out they are not JSON.
+SESSION_RECORD_PATTERN = "*.json"
 UNDATED = datetime.min.replace(tzinfo=UTC)
 
 
@@ -19,6 +26,8 @@ class ClaudeCodeProvider:
     """Reads the Claude Code folder (`~/.claude` by default). It never writes."""
 
     root: Path
+    # Injected so tests can decide which pids are alive without real processes.
+    inspect_process: Callable[[int], ProcessState] = field(default=inspect_process)
 
     @property
     def provider_id(self) -> str:
@@ -63,6 +72,60 @@ class ClaudeCodeProvider:
         # Files come sorted by name (the session id), and Python's sort is stable, also with
         # reverse=True: sessions with the same end date keep the id order.
         return sorted(owned, key=lambda summary: summary.ended_at or UNDATED, reverse=True)
+
+    def is_active(self, session: Session) -> bool:
+        """A Claude Code process still running this session, per its `sessions/<pid>.json`."""
+        records = read_session_records(self.root / SESSIONS_DIR_NAME)
+        return any(
+            record.session_id == session.session_id
+            and is_record_alive(record, self.inspect_process)
+            for record in records
+        )
+
+
+@dataclass(frozen=True)
+class SessionRecord:
+    """The part of `sessions/<pid>.json` that tells whether a session is open."""
+
+    pid: int
+    session_id: str
+    proc_start: str | None
+
+
+def read_session_records(sessions_dir: Path) -> list[SessionRecord]:
+    # glob() on a missing folder yields nothing, so no existence check is needed.
+    records = (
+        read_session_record(path) for path in sorted(sessions_dir.glob(SESSION_RECORD_PATTERN))
+    )
+    return [record for record in records if record is not None]
+
+
+def read_session_record(path: Path) -> SessionRecord | None:
+    try:
+        content = json.loads(path.read_bytes())
+    except (OSError, ValueError):
+        return None
+    if not isinstance(content, dict):
+        return None
+    pid = content.get("pid")
+    session_id = content.get("sessionId")
+    proc_start = content.get("procStart")
+    # bool is a subclass of int in Python, so `true` would otherwise pass as pid 1.
+    if isinstance(pid, bool) or not isinstance(pid, int) or not isinstance(session_id, str):
+        return None
+    return SessionRecord(pid, session_id, proc_start if isinstance(proc_start, str) else None)
+
+
+def is_record_alive(record: SessionRecord, inspect: Callable[[int], ProcessState]) -> bool:
+    state = inspect(record.pid)
+    if not state.is_running:
+        return False
+    if state.start_marker is None or record.proc_start is None:
+        # Without both start times the pid cannot be double-checked. Counting the session as
+        # active is the safe side: active sessions are never modified.
+        return True
+    # A different start time means the OS gave this pid to a newer process.
+    return state.start_marker == record.proc_start
 
 
 def list_session_files(storage_dir: Path) -> list[Path]:
