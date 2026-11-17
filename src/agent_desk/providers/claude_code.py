@@ -1,5 +1,5 @@
 import json
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from contextlib import closing
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -7,8 +7,9 @@ from pathlib import Path
 
 from agent_desk.config import CLAUDE_PROVIDER_ID
 from agent_desk.domain.errors import ProviderNotFound
-from agent_desk.domain.models import Project, Session, SessionSummary
+from agent_desk.domain.models import Project, Session, SessionSummary, TranscriptEntry
 from agent_desk.providers.claude_summary import read_cwd, summarize_session
+from agent_desk.providers.claude_transcript import read_transcript_entries
 from agent_desk.providers.jsonl import read_json_lines
 from agent_desk.providers.processes import ProcessState, inspect_process
 
@@ -72,6 +73,9 @@ class ClaudeCodeProvider:
         # Files come sorted by name (the session id), and Python's sort is stable, also with
         # reverse=True: sessions with the same end date keep the id order.
         return sorted(owned, key=lambda summary: summary.ended_at or UNDATED, reverse=True)
+
+    def read_transcript(self, session: Session) -> Iterator[TranscriptEntry]:
+        return read_transcript_entries(session.path)
 
     def is_active(self, session: Session) -> bool:
         """A Claude Code process still running this session, per its `sessions/<pid>.json`."""
