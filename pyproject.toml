@@ -53,6 +53,7 @@ testpaths = ["tests"]
 pythonpath = ["tests"]
 addopts = ["--strict-markers", "--strict-config"]
 xfail_strict = true
+markers = ["slow: performance checks on large synthetic files (still run by default)"]
 filterwarnings = ["error"]
 
 [dependency-groups]

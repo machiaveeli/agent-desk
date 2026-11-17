@@ -17,6 +17,7 @@ BASE_TIME = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
 FAKE_MODEL = "fake-model"
 FAKE_PROC_START = "424242"
 FAKE_STARTED_AT_MS = 1_767_261_600_000
+LARGE_SESSION_FILLER_REPEAT = 80
 CORRUPTED_LINE = '{"type": "user", "message": {"role": "us'
 UNKNOWN_TYPE_LINE: JsonLine = {"type": "some-future-type", "payload": {"anything": True}}
 
@@ -99,6 +100,19 @@ class ClaudeTree:
         # Bytes, not text mode: on Windows text mode would turn "\n" into "\r\n".
         path.write_bytes(text.encode("utf-8"))
         return path
+
+    def add_large_session(
+        self, project_dir: Path, session_id: str, *, cwd: str, min_size_bytes: int
+    ) -> Path:
+        """A long user/assistant exchange of at least `min_size_bytes`, for streaming tests."""
+        filler = "lorem ipsum " * LARGE_SESSION_FILLER_REPEAT
+        pair: list[JsonLine] = [
+            user_line(filler, cwd=cwd),
+            assistant_line([text_block(filler)], cwd=cwd),
+        ]
+        pair_size = sum(len(serialize_line(line, session_id)) + 1 for line in pair)
+        pair_count = min_size_bytes // pair_size + 1
+        return self.add_session(project_dir, session_id, pair * pair_count)
 
     def add_sibling_file(
         self, project_dir: Path, session_id: str, relative_path: str, text: str
