@@ -114,7 +114,7 @@ def read_prompt(line: JsonObject) -> str | None:
     text = extract_text(message.get("content")) if isinstance(message, dict) else None
     if text is None or text.lstrip().startswith(LOCAL_COMMAND_TAGS):
         return None
-    return truncate(" ".join(text.split())) or None
+    return truncate(" ".join(text.split()), FIRST_PROMPT_MAX_LENGTH) or None
 
 
 def extract_text(content: object) -> str | None:
@@ -124,25 +124,26 @@ def extract_text(content: object) -> str | None:
         return content
     if not isinstance(content, list):
         return None
-    return " ".join(block["text"] for block in content if is_text_block(block))
+    texts = (read_block_text(block) for block in content)
+    return " ".join(text for text in texts if text is not None)
 
 
-def is_text_block(block: object) -> bool:
-    return (
-        isinstance(block, dict)
-        and block.get("type") == "text"
-        and isinstance(block.get("text"), str)
-    )
+def read_block_text(block: object) -> str | None:
+    """The text of a `{"type": "text", "text": ...}` block; None for any other block."""
+    if not isinstance(block, dict) or block.get("type") != "text":
+        return None
+    text = block.get("text")
+    return text if isinstance(text, str) else None
 
 
 def read_text(value: object) -> str | None:
     return (value.strip() or None) if isinstance(value, str) else None
 
 
-def truncate(text: str) -> str:
-    if len(text) <= FIRST_PROMPT_MAX_LENGTH:
+def truncate(text: str, max_length: int) -> str:
+    if len(text) <= max_length:
         return text
-    return text[: FIRST_PROMPT_MAX_LENGTH - len(ELLIPSIS)] + ELLIPSIS
+    return text[: max_length - len(ELLIPSIS)] + ELLIPSIS
 
 
 def parse_timestamp(value: object) -> datetime | None:
