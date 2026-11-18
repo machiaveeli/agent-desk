@@ -6,10 +6,10 @@ from datetime import datetime
 from pathlib import Path
 
 from agent_desk.domain.models import Session, SessionSummary
+from agent_desk.domain.text import truncate
 from agent_desk.providers.jsonl import JsonObject, read_json_lines
 
 FIRST_PROMPT_MAX_LENGTH = 120
-ELLIPSIS = "…"
 SIBLING_TITLE_FILE_NAME = "custom-title.json"
 # Claude Code records local slash commands (/clear, /rename...) and their output as user
 # lines wrapped in these tags. They are not something the user asked the AI.
@@ -138,12 +138,6 @@ def read_block_text(block: object) -> str | None:
 
 def read_text(value: object) -> str | None:
     return (value.strip() or None) if isinstance(value, str) else None
-
-
-def truncate(text: str, max_length: int) -> str:
-    if len(text) <= max_length:
-        return text
-    return text[: max_length - len(ELLIPSIS)] + ELLIPSIS
 
 
 def parse_timestamp(value: object) -> datetime | None:
