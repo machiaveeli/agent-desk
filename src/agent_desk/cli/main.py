@@ -9,9 +9,10 @@ from typing import Annotated
 import typer
 
 from agent_desk.cli.formatting import format_projects_table, format_sessions_table
-from agent_desk.config import default_config_path, load_config
-from agent_desk.domain.errors import ConfigError, ProjectNotFound, ResumeError
+from agent_desk.config import Config, default_config_path, load_config
+from agent_desk.domain.errors import ConfigError, ProjectNotFound, ResumeError, UnknownProvider
 from agent_desk.providers.claude_code import ClaudeCodeProvider
+from agent_desk.providers.codex import CodexProvider
 from agent_desk.services.catalog import CatalogService
 from agent_desk.services.resume import (
     ExecutableFinder,
@@ -24,6 +25,9 @@ PACKAGE_NAME = "agent-desk"
 EXIT_FAILURE = 1
 
 type CatalogLoader = Callable[[], CatalogService | ConfigError]
+type ProviderOption = Annotated[
+    str | None, typer.Option("--provider", help="Show only this AI CLI, e.g. 'codex'.")
+]
 
 app = typer.Typer(add_completion=False)
 
@@ -51,9 +55,9 @@ def main(
 
 
 @app.command()
-def projects(ctx: typer.Context) -> None:
+def projects(ctx: typer.Context, provider: ProviderOption = None) -> None:
     """List the projects of every AI CLI, most recent activity first."""
-    catalog = get_catalog(ctx).list_projects()
+    catalog = get_catalog(ctx, provider).list_projects()
     for missing in catalog.missing_providers:
         typer.echo(f"Note: no {missing.provider_id} data found at {missing.root}.", err=True)
     if not catalog.projects:
@@ -68,11 +72,12 @@ def sessions(
     project: Annotated[
         Path, typer.Option("--project", help="The project folder (its cwd), e.g. '.'.")
     ],
+    provider: ProviderOption = None,
 ) -> None:
     """List the sessions of one project, most recent first."""
     # absolute(), not resolve(): resolve() follows symlinks and expands Windows short names,
     # and the result would no longer match the cwd the AI CLI recorded.
-    result = get_catalog(ctx).list_sessions(project.absolute())
+    result = get_catalog(ctx, provider).list_sessions(project.absolute())
     if isinstance(result, ProjectNotFound):
         typer.echo(f"Error: no project found for {result.cwd}.", err=True)
         raise typer.Exit(EXIT_FAILURE)
@@ -120,16 +125,35 @@ def get_dependencies(ctx: typer.Context) -> Dependencies:
     return dependencies if isinstance(dependencies, Dependencies) else Dependencies()
 
 
-def get_catalog(ctx: typer.Context) -> CatalogService:
+def get_catalog(ctx: typer.Context, provider_id: str | None = None) -> CatalogService:
     catalog = get_dependencies(ctx).load_catalog()
     if isinstance(catalog, ConfigError):
         typer.echo(f"Error: config: {catalog.detail}", err=True)
         raise typer.Exit(EXIT_FAILURE)
-    return catalog
+    if provider_id is None:
+        return catalog
+    selected = catalog.only_provider(provider_id)
+    if isinstance(selected, UnknownProvider):
+        known = ", ".join(selected.known_ids)
+        typer.echo(f"Error: unknown provider '{provider_id}' (known: {known}).", err=True)
+        raise typer.Exit(EXIT_FAILURE)
+    return selected
 
 
 def load_default_catalog() -> CatalogService | ConfigError:
     config = load_config(default_config_path(), os.environ, Path.home())
     if isinstance(config, ConfigError):
         return config
-    return CatalogService([ClaudeCodeProvider(root=config.claude_root)])
+    return build_catalog(config)
+
+
+def build_catalog(config: Config) -> CatalogService:
+    return CatalogService(
+        [
+            ClaudeCodeProvider(root=config.claude_root),
+            CodexProvider(
+                root=config.codex_root,
+                active_threshold_minutes=config.codex_active_threshold_minutes,
+            ),
+        ]
+    )

@@ -25,6 +25,14 @@ class ProviderNotFound:
 
 
 @dataclass(frozen=True)
+class UnknownProvider:
+    """No registered provider has this id. `known_ids` lists the ones that exist."""
+
+    provider_id: str
+    known_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ProjectNotFound:
     """No provider has a project whose cwd is this path."""
 
