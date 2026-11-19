@@ -10,7 +10,7 @@ from fixtures.claude_tree import (
 )
 
 SESSION_ID = "00000000-0000-4000-8000-000000000001"
-CWD = "/work/my-app.v2"
+CWD = "/work/my-app"
 
 
 def read_lines(path: Path) -> list[str]:
@@ -20,7 +20,8 @@ def read_lines(path: Path) -> list[str]:
 def test_project_folder_name_encodes_the_cwd_like_claude_code(claude_tree: ClaudeTree) -> None:
     project_dir = claude_tree.add_project(CWD)
 
-    assert project_dir == claude_tree.root / "projects" / "-work-my-app-v2"
+    # Only the observed rule: "/" becomes "-". How other characters are encoded was not seen.
+    assert project_dir == claude_tree.root / "projects" / "-work-my-app"
     assert project_dir.is_dir()
 
 

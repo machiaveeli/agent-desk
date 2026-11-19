@@ -1,6 +1,10 @@
 """Builds a synthetic ~/.claude tree inside tmp_path. Every value here is made up.
 
-The line shapes follow what Claude Code writes, trimmed to the fields agent-desk reads.
+The shapes are not made up. Claude Code's on-disk format has no public documentation, so each
+shape below was checked against real local files written by Claude Code 2.1.3xx (structure
+and field types only, no content), as noted per builder. A builder only writes fields seen
+there, trimmed to the ones agent-desk reads. A shape that was not observed is marked
+"Not observed" and no behavior may rely on it.
 """
 
 import json
@@ -28,10 +32,14 @@ def timestamp_at(minute: int) -> str:
 
 
 def encode_cwd(cwd: str) -> str:
-    """Mimics Claude Code's folder naming: every non-alphanumeric character becomes '-'."""
+    """Mimics Claude Code's folder naming. Observed: '/' becomes '-' and letters and digits
+    stay. Not observed: other characters (assumed to become '-' too) and Windows paths. Only
+    the fixture layout uses this; agent-desk reads the cwd from the session, never the name."""
     return re.sub(r"[^A-Za-z0-9]", "-", cwd)
 
 
+# Observed: message.content is a string or a list of blocks typed "text", "thinking",
+# "tool_use" or "tool_result". A tool_result's content is a string or a list of blocks.
 def text_block(text: str) -> ContentBlock:
     return {"type": "text", "text": text}
 
@@ -48,6 +56,8 @@ def tool_result_block(tool_use_id: str, text: str) -> ContentBlock:
     return {"type": "tool_result", "tool_use_id": tool_use_id, "content": text}
 
 
+# Observed: "user" and "assistant" lines carry sessionId, cwd, an ISO UTC timestamp with
+# milliseconds and "Z", and message. Injected lines add isMeta or isCompactSummary.
 def user_line(
     content: str | list[ContentBlock], *, cwd: str, minute: int = 0, is_meta: bool = False
 ) -> JsonLine:
@@ -76,6 +86,8 @@ def assistant_line(content: list[ContentBlock], *, cwd: str, minute: int = 0) ->
     }
 
 
+# Observed: {"type": "custom-title", "customTitle", "sessionId"} and
+# {"type": "ai-title", "aiTitle", "sessionId"}. A session may hold several custom-title lines.
 def custom_title_line(title: str) -> JsonLine:
     return {"type": "custom-title", "customTitle": title}
 
@@ -123,6 +135,8 @@ class ClaudeTree:
         return path
 
     def add_sibling_custom_title(self, project_dir: Path, session_id: str, title: str) -> Path:
+        """Observed: `<session_id>/custom-title.json` holds {"customTitle"}. In every real case
+        it also had custom-title lines, with the same value as the last one."""
         content = json.dumps({"customTitle": title})
         return self.add_sibling_file(project_dir, session_id, "custom-title.json", content)
 
@@ -135,7 +149,11 @@ class ClaudeTree:
     def add_active_session_file(
         self, *, pid: int, session_id: str, cwd: str, proc_start: str = FAKE_PROC_START
     ) -> Path:
-        """Writes `sessions/<pid>.json` plus the `<pid>.<hash>.key` file Claude keeps beside it."""
+        """Writes `sessions/<pid>.json` plus the `<pid>.<hash>.key` file Claude keeps beside it.
+
+        Observed fields and types: pid int, sessionId str, cwd str, startedAt int (ms),
+        procStart str, status str. On Linux, procStart equals field 22 of /proc/<pid>/stat
+        (checked against a running session)."""
         record = {
             "pid": pid,
             "sessionId": session_id,

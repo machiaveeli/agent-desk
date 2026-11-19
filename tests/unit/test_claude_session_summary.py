@@ -72,6 +72,10 @@ def test_title_follows_the_priority_order(
     assert summary.title == expected_title
 
 
+# The sibling custom-title.json was always seen together with custom-title lines and holding
+# the same value as the last one. The next three tests pin agent-desk's own fallback
+# order for the cases never observed (file alone, file disagreeing, file broken); they do
+# not describe Claude Code behavior.
 def test_sibling_title_file_beats_the_ai_title(claude_tree: ClaudeTree, project_dir: Path) -> None:
     claude_tree.add_sibling_custom_title(project_dir, SESSION_ID, "from file")
 
