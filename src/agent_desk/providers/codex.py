@@ -10,6 +10,7 @@ from agent_desk.providers.codex_rollout import list_rollout_files, read_rollout_
 from agent_desk.providers.codex_summary import read_thread_names, summarize_rollout
 from agent_desk.providers.codex_transcript import read_transcript_entries
 
+CODEX_EXECUTABLE = "codex"
 SESSIONS_DIR_NAME = "sessions"
 UNDATED = datetime.min.replace(tzinfo=UTC)
 
@@ -58,6 +59,10 @@ class CodexProvider:
 
     def read_transcript(self, session: Session) -> Iterator[TranscriptEntry]:
         return read_transcript_entries(session.path)
+
+    def resume_command(self, session: Session) -> list[str]:
+        """`codex resume <SESSION_ID>` takes the thread UUID, which is the session id here."""
+        return [CODEX_EXECUTABLE, "resume", session.session_id]
 
     def is_active(self, session: Session) -> bool:
         """Codex leaves no record of its running sessions, so a rollout written to in the
