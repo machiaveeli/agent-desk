@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
-from agent_desk.domain.errors import ProjectNotFound, ProviderNotFound
+from agent_desk.domain.errors import ProjectNotFound, ProviderNotFound, UnknownProvider
 from agent_desk.domain.models import Project, SessionSummary
 from agent_desk.providers.base import Provider
 
@@ -40,6 +40,14 @@ class FoundSession:
 @dataclass(frozen=True)
 class CatalogService:
     providers: Sequence[Provider]
+
+    def only_provider(self, provider_id: str) -> "CatalogService | UnknownProvider":
+        """The same catalog narrowed to one provider, for the `--provider` filter."""
+        selected = [provider for provider in self.providers if provider.provider_id == provider_id]
+        if not selected:
+            known_ids = tuple(provider.provider_id for provider in self.providers)
+            return UnknownProvider(provider_id, known_ids)
+        return CatalogService(selected)
 
     def list_projects(self) -> ProjectCatalog:
         """Most recent activity first; projects without dated sessions come last."""

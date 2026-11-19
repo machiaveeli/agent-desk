@@ -8,14 +8,16 @@ Tools like the Claude Code CLI and the Codex CLI store every session as plain fi
 
 **Early development. Not usable yet.**
 
-What works today (Claude Code only, read-only except for resume):
+What works today (Claude Code and Codex, read-only except for resume):
 - `agent-desk projects`: every project with its session count, last activity, and size.
 - `agent-desk sessions --project <path>`: the sessions of one project (`.` for the current folder).
-- `agent-desk resume <session-id>`: reopen a session in `claude`, inside its project folder.
+- `--provider claude-code` or `--provider codex` on both commands shows only that CLI.
+- `agent-desk resume <session-id>`: reopen a session in `claude` or `codex`, inside its project folder.
 - `agent-desk --version`
 
+Codex sessions are read from `~/.codex/sessions` (or `$CODEX_HOME`). Compressed (`.jsonl.zst`) and archived sessions are not shown yet.
+
 Planned for the first release:
-- Codex sessions next to the Claude Code ones.
 - A terminal dashboard, including a condensed transcript of each session.
 - Move sessions to an app trash and restore them.
 - Manage memory files.
