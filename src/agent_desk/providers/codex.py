@@ -1,9 +1,9 @@
-from collections.abc import Iterator
-from dataclasses import dataclass
-from datetime import UTC, datetime
+from collections.abc import Callable, Iterator
+from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from agent_desk.config import CODEX_PROVIDER_ID
+from agent_desk.config import CODEX_PROVIDER_ID, DEFAULT_CODEX_ACTIVE_THRESHOLD_MINUTES
 from agent_desk.domain.errors import ProviderNotFound
 from agent_desk.domain.models import Project, Session, SessionSummary, TranscriptEntry
 from agent_desk.providers.codex_rollout import list_rollout_files, read_rollout_meta
@@ -24,6 +24,9 @@ class CodexProvider:
     """
 
     root: Path
+    active_threshold_minutes: int = DEFAULT_CODEX_ACTIVE_THRESHOLD_MINUTES
+    # Injected so tests control the clock.
+    now: Callable[[], datetime] = field(default=lambda: datetime.now(UTC))
 
     @property
     def provider_id(self) -> str:
@@ -55,6 +58,16 @@ class CodexProvider:
 
     def read_transcript(self, session: Session) -> Iterator[TranscriptEntry]:
         return read_transcript_entries(session.path)
+
+    def is_active(self, session: Session) -> bool:
+        """Codex leaves no record of its running sessions, so a rollout written to in the
+        last few minutes counts as open (our rule, see SPEC -> Decisions). A rollout that is
+        gone has nothing left to protect."""
+        try:
+            modified_at = datetime.fromtimestamp(session.path.stat().st_mtime, UTC)
+        except OSError:
+            return False
+        return self.now() - modified_at < timedelta(minutes=self.active_threshold_minutes)
 
     def list_user_rollouts(self) -> list[tuple[Path, Path | None]]:
         """Each rollout with its cwd, leaving out the ones Codex started on its own (subagents,
