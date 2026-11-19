@@ -5,12 +5,8 @@ from pathlib import Path
 
 from agent_desk.domain.models import TranscriptEntry, TranscriptRole
 from agent_desk.domain.text import truncate
-from agent_desk.providers.claude_summary import (
-    LOCAL_COMMAND_TAGS,
-    read_block_text,
-    read_text,
-)
-from agent_desk.providers.jsonl import JsonObject, read_json_lines
+from agent_desk.providers.claude_summary import LOCAL_COMMAND_TAGS, read_block_text
+from agent_desk.providers.jsonl import JsonObject, read_json_lines, read_text
 
 TOOL_SUMMARY_MAX_LENGTH = 80
 # Lines Claude Code adds on the user's behalf: injected context (isMeta) and the summary
