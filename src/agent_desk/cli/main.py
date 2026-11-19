@@ -1,5 +1,7 @@
 import os
+import shutil
 from collections.abc import Callable
+from dataclasses import dataclass, field
 from importlib.metadata import version
 from pathlib import Path
 from typing import Annotated
@@ -8,15 +10,19 @@ import typer
 
 from agent_desk.cli.formatting import format_projects_table, format_sessions_table
 from agent_desk.config import default_config_path, load_config
-from agent_desk.domain.errors import ConfigError, ProjectNotFound
+from agent_desk.domain.errors import ConfigError, ProjectNotFound, ResumeError
 from agent_desk.providers.claude_code import ClaudeCodeProvider
 from agent_desk.services.catalog import CatalogService
+from agent_desk.services.resume import (
+    ExecutableFinder,
+    Launcher,
+    ResumeService,
+    run_in_foreground,
+)
 
 PACKAGE_NAME = "agent-desk"
 EXIT_FAILURE = 1
 
-# Tests hand the CLI their own loader through Typer's `obj`, so they never read the real
-# home folder or config file.
 type CatalogLoader = Callable[[], CatalogService | ConfigError]
 
 app = typer.Typer(add_completion=False)
@@ -76,9 +82,46 @@ def sessions(
         typer.echo(f"Note: {invalid_line_count} unreadable lines were skipped.", err=True)
 
 
+@app.command()
+def resume(
+    ctx: typer.Context,
+    session_id: Annotated[str, typer.Argument(help="The session id, as `sessions` lists it.")],
+) -> None:
+    """Resume a session in its own AI CLI, inside the project folder, in this terminal."""
+    dependencies = get_dependencies(ctx)
+    service = ResumeService(
+        catalog=get_catalog(ctx),
+        find_executable=dependencies.find_executable,
+        launch=dependencies.launch,
+    )
+    plan = service.prepare(session_id)
+    if isinstance(plan, ResumeError):
+        typer.echo(f"Error: {plan.detail}", err=True)
+        raise typer.Exit(EXIT_FAILURE)
+    if plan.is_active:
+        typer.echo("This session is open in another terminal. Two copies may overwrite each other.")
+        if not typer.confirm("Resume it anyway?", default=False):
+            raise typer.Exit(EXIT_FAILURE)
+    raise typer.Exit(service.launch_plan(plan))
+
+
+@dataclass(frozen=True)
+class Dependencies:
+    """What the commands use from the outside world. Tests pass their own through Typer's
+    `obj`, so they never read the real home folder or config, nor start a real AI CLI."""
+
+    load_catalog: CatalogLoader = field(default_factory=lambda: load_default_catalog)
+    find_executable: ExecutableFinder = shutil.which
+    launch: Launcher = run_in_foreground
+
+
+def get_dependencies(ctx: typer.Context) -> Dependencies:
+    dependencies = ctx.obj
+    return dependencies if isinstance(dependencies, Dependencies) else Dependencies()
+
+
 def get_catalog(ctx: typer.Context) -> CatalogService:
-    load_catalog: CatalogLoader = ctx.obj or load_default_catalog
-    catalog = load_catalog()
+    catalog = get_dependencies(ctx).load_catalog()
     if isinstance(catalog, ConfigError):
         typer.echo(f"Error: config: {catalog.detail}", err=True)
         raise typer.Exit(EXIT_FAILURE)

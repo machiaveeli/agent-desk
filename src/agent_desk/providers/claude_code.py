@@ -13,6 +13,7 @@ from agent_desk.providers.claude_transcript import read_transcript_entries
 from agent_desk.providers.jsonl import read_json_lines
 from agent_desk.providers.processes import ProcessState, inspect_process
 
+CLAUDE_EXECUTABLE = "claude"
 PROJECTS_DIR_NAME = "projects"
 SESSION_FILE_PATTERN = "*.jsonl"
 SESSIONS_DIR_NAME = "sessions"
@@ -76,6 +77,9 @@ class ClaudeCodeProvider:
 
     def read_transcript(self, session: Session) -> Iterator[TranscriptEntry]:
         return read_transcript_entries(session.path)
+
+    def resume_command(self, session: Session) -> list[str]:
+        return [CLAUDE_EXECUTABLE, "--resume", session.session_id]
 
     def is_active(self, session: Session) -> bool:
         """A Claude Code process still running this session, per its `sessions/<pid>.json`."""

@@ -1,11 +1,11 @@
-"""The catalog is injected through Typer's `obj`, so no test reads the real home or config."""
+"""Dependencies are injected through Typer's `obj`, so no test reads the real home or config."""
 
 from pathlib import Path
 
 import pytest
 from typer.testing import CliRunner, Result
 
-from agent_desk.cli.main import CatalogLoader, app
+from agent_desk.cli.main import CatalogLoader, Dependencies, app
 from agent_desk.domain.errors import ConfigError
 from agent_desk.providers.claude_code import ClaudeCodeProvider
 from agent_desk.services.catalog import CatalogService
@@ -35,7 +35,7 @@ def run(claude_tree: ClaudeTree, args: list[str]) -> Result:
 
 
 def invoke(args: list[str], load_catalog: CatalogLoader) -> Result:
-    return runner.invoke(app, args, obj=load_catalog)
+    return runner.invoke(app, args, obj=Dependencies(load_catalog=load_catalog))
 
 
 def add_two_sessions(claude_tree: ClaudeTree, cwd: Path) -> None:
