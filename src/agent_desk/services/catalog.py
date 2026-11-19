@@ -30,6 +30,14 @@ class ProjectCatalog:
 
 
 @dataclass(frozen=True)
+class FoundSession:
+    """A session together with the provider that owns it, which knows how to act on it."""
+
+    provider: Provider
+    summary: SessionSummary
+
+
+@dataclass(frozen=True)
 class CatalogService:
     providers: Sequence[Provider]
 
@@ -61,6 +69,17 @@ class CatalogService:
         if not is_known:
             return ProjectNotFound(cwd)
         return sorted(summaries, key=lambda summary: summary.ended_at or UNDATED, reverse=True)
+
+    def find_session(self, session_id: str) -> FoundSession | None:
+        for provider in self.providers:
+            projects = provider.discover_projects()
+            if isinstance(projects, ProviderNotFound):
+                continue
+            for project in projects:
+                for summary in provider.list_sessions(project):
+                    if summary.session.session_id == session_id:
+                        return FoundSession(provider, summary)
+        return None
 
 
 def summarize_project(project: Project, provider: Provider) -> ProjectOverview:

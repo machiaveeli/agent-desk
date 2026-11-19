@@ -29,3 +29,14 @@ class ProjectNotFound:
     """No provider has a project whose cwd is this path."""
 
     cwd: Path
+
+
+type ResumeErrorReason = Literal["session_not_found", "cwd_unknown", "cwd_missing", "cli_not_found"]
+
+
+@dataclass(frozen=True)
+class ResumeError:
+    """Why a session cannot be resumed. `detail` is a message for the user."""
+
+    reason: ResumeErrorReason
+    detail: str
