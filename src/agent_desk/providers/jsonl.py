@@ -1,5 +1,6 @@
 import json
 from collections.abc import Generator
+from datetime import datetime
 from pathlib import Path
 
 type JsonObject = dict[str, object]
@@ -23,3 +24,18 @@ def parse_json_object(raw_line: bytes) -> JsonObject | None:
     except (UnicodeDecodeError, json.JSONDecodeError):
         return None
     return value if isinstance(value, dict) else None
+
+
+def read_text(value: object) -> str | None:
+    return (value.strip() or None) if isinstance(value, str) else None
+
+
+def parse_timestamp(value: object) -> datetime | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        moment = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    # A timestamp without a timezone cannot be placed in time reliably, so it is ignored.
+    return moment if moment.tzinfo is not None else None

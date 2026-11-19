@@ -7,7 +7,7 @@ from pathlib import Path
 
 from agent_desk.domain.models import Session, SessionSummary
 from agent_desk.domain.text import truncate
-from agent_desk.providers.jsonl import JsonObject, read_json_lines
+from agent_desk.providers.jsonl import JsonObject, parse_timestamp, read_json_lines, read_text
 
 FIRST_PROMPT_MAX_LENGTH = 120
 SIBLING_TITLE_FILE_NAME = "custom-title.json"
@@ -134,21 +134,6 @@ def read_block_text(block: object) -> str | None:
         return None
     text = block.get("text")
     return text if isinstance(text, str) else None
-
-
-def read_text(value: object) -> str | None:
-    return (value.strip() or None) if isinstance(value, str) else None
-
-
-def parse_timestamp(value: object) -> datetime | None:
-    if not isinstance(value, str):
-        return None
-    try:
-        moment = datetime.fromisoformat(value)
-    except ValueError:
-        return None
-    # A timestamp without a timezone cannot be placed in time reliably, so it is ignored.
-    return moment if moment.tzinfo is not None else None
 
 
 def measure_size(session: Session) -> int:
