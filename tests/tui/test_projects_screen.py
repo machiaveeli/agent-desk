@@ -1,6 +1,7 @@
 """Pilot tests for the projects screen. The catalog reads synthetic trees in tmp_path."""
 
 from datetime import datetime
+from pathlib import Path
 
 from textual.widgets import DataTable, HelpPanel, Input, Static
 
@@ -54,7 +55,11 @@ async def test_projects_of_both_providers_are_listed_together(
     async with app.run_test():
         rows = table_rows(app)
 
-    assert sorted(rows) == [("claude-code", CLAUDE_CWD, "2"), ("codex", CODEX_CWD, "1")]
+    # The project label is the cwd as the OS writes it, with backslashes on Windows.
+    assert sorted(rows) == [
+        ("claude-code", str(Path(CLAUDE_CWD)), "2"),
+        ("codex", str(Path(CODEX_CWD)), "1"),
+    ]
 
 
 async def test_typing_in_the_filter_keeps_only_matching_projects(
@@ -68,7 +73,7 @@ async def test_typing_in_the_filter_keeps_only_matching_projects(
         await pilot.press("/", *"API")
         rows = table_rows(app)
 
-    assert rows == [("codex", CODEX_CWD, "1")]
+    assert rows == [("codex", str(Path(CODEX_CWD)), "1")]
 
 
 async def test_a_missing_provider_shows_a_friendly_note(
