@@ -1,12 +1,12 @@
 """Joins every provider into one catalog of projects and sessions. It only reads."""
 
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_desk.domain.errors import ProjectNotFound, ProviderNotFound, UnknownProvider
-from agent_desk.domain.models import Project, Session, SessionSummary
+from agent_desk.domain.models import Project, Session, SessionSummary, TranscriptEntry
 from agent_desk.providers.base import Provider
 
 UNDATED = datetime.min.replace(tzinfo=UTC)
@@ -82,6 +82,9 @@ class CatalogService:
         """The sessions of this one project, as the projects list shows it. Providers already
         return them most recent first."""
         return self.provider_for(project.provider_id).list_sessions(project)
+
+    def read_transcript(self, session: Session) -> Iterator[TranscriptEntry]:
+        return self.provider_for(session.provider_id).read_transcript(session)
 
     def is_active(self, session: Session) -> bool:
         return self.provider_for(session.provider_id).is_active(session)
