@@ -3,7 +3,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from agent_desk.domain.errors import ProjectNotFound, ProviderNotFound
-from agent_desk.domain.models import Session
+from agent_desk.domain.models import Session, TranscriptEntry
 from agent_desk.providers.claude_code import ClaudeCodeProvider
 from agent_desk.providers.codex import CodexProvider
 from agent_desk.services.catalog import CatalogService
@@ -150,3 +150,14 @@ def test_is_active_asks_the_session_provider(codex_tree: CodexTree) -> None:
 
     assert catalog_at(codex_tree, MODIFIED_AT).is_active(session)
     assert not catalog_at(codex_tree, long_after).is_active(session)
+
+
+def test_transcript_is_read_by_the_session_provider(claude_tree: ClaudeTree) -> None:
+    project_dir = claude_tree.add_project(CWD)
+    claude_tree.add_session(project_dir, SESSION_A, [user_line("hello", cwd=CWD)])
+    catalog = make_catalog(claude_tree)
+    [summary] = catalog.list_project_sessions(catalog.list_projects().projects[0].project)
+
+    entries = list(catalog.read_transcript(summary.session))
+
+    assert entries == [TranscriptEntry("user", "hello")]

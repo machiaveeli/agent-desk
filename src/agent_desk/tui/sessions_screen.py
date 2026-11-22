@@ -4,11 +4,13 @@ from collections.abc import Iterable
 from typing import ClassVar, Literal
 
 from textual.binding import Binding, BindingType
+from textual.widgets import DataTable
 
 from agent_desk.display import format_moment, format_project_label, format_size, format_title
 from agent_desk.domain.models import Project, SessionSummary
 from agent_desk.services.catalog import CatalogService, sort_most_recent_first
 from agent_desk.tui.table_screen import TableRow, TableScreen
+from agent_desk.tui.transcript_screen import TranscriptScreen
 
 type SortOrder = Literal["date", "size"]
 
@@ -50,6 +52,10 @@ class SessionsScreen(TableScreen):
 
     def leave(self) -> None:
         self.app.pop_screen()
+
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        summary = self.summaries[int(str(event.row_key.value))]
+        self.app.push_screen(TranscriptScreen(self.catalog, summary))
 
     def action_toggle_sort(self) -> None:
         self.session_order = "size" if self.session_order == "date" else "date"
