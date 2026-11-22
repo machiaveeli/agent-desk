@@ -1,63 +1,41 @@
 """The first screen: every project of every provider, with a text filter."""
 
-from collections.abc import Sequence
-from typing import ClassVar
+from collections.abc import Iterable, Sequence
 
-from textual.app import ComposeResult
-from textual.binding import Binding, BindingType
-from textual.screen import Screen
-from textual.widgets import DataTable, Footer, Header, Input, Static
+from textual.widgets import DataTable
 
 from agent_desk.display import format_moment, format_project_label, format_size
 from agent_desk.domain.errors import ProviderNotFound
 from agent_desk.services.catalog import CatalogService, ProjectOverview
+from agent_desk.tui.sessions_screen import SessionsScreen
+from agent_desk.tui.table_screen import TableRow, TableScreen
 
-COLUMNS = ("Provider", "Project", "Sessions", "Last activity", "Size")
 
-
-class ProjectsScreen(Screen[None]):
-    BINDINGS: ClassVar[list[BindingType]] = [
-        Binding("slash", "focus_filter", "Filter"),
-        Binding("escape", "focus_table", "Back to list", show=False),
-    ]
+class ProjectsScreen(TableScreen):
+    COLUMNS = ("Provider", "Project", "Sessions", "Last activity", "Size")
+    FILTER_PLACEHOLDER = "Filter projects (press /)"
 
     def __init__(self, catalog: CatalogService) -> None:
         super().__init__()
         self.catalog = catalog
         self.overviews: list[ProjectOverview] = []
 
-    def compose(self) -> ComposeResult:
-        yield Header()
-        yield Input(placeholder="Filter projects (press /)", id="filter")
-        yield DataTable(cursor_type="row", id="projects")
-        yield Static(id="note")
-        yield Footer()
-
-    def on_mount(self) -> None:
-        self.query_one(DataTable).add_columns(*COLUMNS)
+    def load(self) -> None:
         catalog = self.catalog.list_projects()
         self.overviews = catalog.projects
-        self.query_one("#note", Static).update(
-            describe_notes(catalog.projects, catalog.missing_providers)
-        )
-        self.show_projects("")
-        self.action_focus_table()
+        self.show_note(describe_notes(catalog.projects, catalog.missing_providers))
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        self.show_projects(event.value)
-
-    def show_projects(self, filter_text: str) -> None:
-        table = self.query_one(DataTable)
-        table.clear()
+    def rows(self, filter_text: str) -> Iterable[TableRow]:
         for index, overview in enumerate(self.overviews):
             if matches_filter(overview, filter_text):
-                table.add_row(*format_project_row(overview), key=str(index))
+                yield str(index), format_project_row(overview)
 
-    def action_focus_filter(self) -> None:
-        self.query_one(Input).focus()
+    def leave(self) -> None:
+        """The first screen has nowhere to go back to; `q` quits."""
 
-    def action_focus_table(self) -> None:
-        self.query_one(DataTable).focus()
+    def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
+        overview = self.overviews[int(str(event.row_key.value))]
+        self.app.push_screen(SessionsScreen(self.catalog, overview.project))
 
 
 def matches_filter(overview: ProjectOverview, filter_text: str) -> bool:

@@ -1,15 +1,22 @@
-from datetime import UTC, datetime
+import os
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from agent_desk.domain.errors import ProjectNotFound, ProviderNotFound
+from agent_desk.domain.models import Session
 from agent_desk.providers.claude_code import ClaudeCodeProvider
+from agent_desk.providers.codex import CodexProvider
 from agent_desk.services.catalog import CatalogService
 from fixtures.claude_tree import ClaudeTree, custom_title_line, user_line
+from fixtures.codex_tree import CodexTree
 
 SESSION_A = "00000000-0000-4000-8000-00000000000a"
 SESSION_B = "00000000-0000-4000-8000-00000000000b"
 SESSION_C = "00000000-0000-4000-8000-00000000000c"
+CODEX_SESSION = "00000000-0000-4000-8000-0000000000c1"
 CWD = "/work/app"
+CODEX_CREATED = datetime(2026, 1, 1, 10, 0, 0)
+MODIFIED_AT = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
 
 
 def at_minute(minute: int) -> datetime:
@@ -105,3 +112,41 @@ def test_unknown_cwd_is_project_not_found(tmp_path: Path, claude_tree: ClaudeTre
     result = make_catalog(missing, claude_tree).list_sessions(Path("/elsewhere"))
 
     assert result == ProjectNotFound(Path("/elsewhere"))
+
+
+def test_project_sessions_come_from_that_project_only_most_recent_first(
+    claude_tree: ClaudeTree, codex_tree: CodexTree
+) -> None:
+    project_dir = claude_tree.add_project(CWD)
+    claude_tree.add_session(project_dir, SESSION_A, [user_line("a", cwd=CWD, minute=1)])
+    claude_tree.add_session(project_dir, SESSION_B, [user_line("b", cwd=CWD, minute=2)])
+    # Same cwd, other provider: a separate project in the projects list.
+    codex_tree.add_session(CODEX_SESSION, cwd=CWD, created=CODEX_CREATED, lines=[])
+    catalog = CatalogService(
+        [ClaudeCodeProvider(root=claude_tree.root), CodexProvider(root=codex_tree.root)]
+    )
+    [claude_project] = [
+        overview.project
+        for overview in catalog.list_projects().projects
+        if overview.project.provider_id == "claude-code"
+    ]
+
+    summaries = catalog.list_project_sessions(claude_project)
+
+    assert [summary.session.session_id for summary in summaries] == [SESSION_B, SESSION_A]
+
+
+def catalog_at(codex_tree: CodexTree, moment: datetime) -> CatalogService:
+    """Claude first, so a lookup that ignores the provider id would ask the wrong one."""
+    codex = CodexProvider(root=codex_tree.root, now=lambda: moment)
+    return CatalogService([ClaudeCodeProvider(root=codex_tree.root), codex])
+
+
+def test_is_active_asks_the_session_provider(codex_tree: CodexTree) -> None:
+    path = codex_tree.add_session(CODEX_SESSION, cwd=CWD, created=CODEX_CREATED, lines=[])
+    os.utime(path, (MODIFIED_AT.timestamp(), MODIFIED_AT.timestamp()))
+    session = Session("codex", CODEX_SESSION, path, None, Path(CWD))
+    long_after = MODIFIED_AT + timedelta(hours=1)
+
+    assert catalog_at(codex_tree, MODIFIED_AT).is_active(session)
+    assert not catalog_at(codex_tree, long_after).is_active(session)
