@@ -21,6 +21,7 @@ from fixtures.claude_tree import (
     tool_use_block,
     user_line,
 )
+from fixtures.tui_app import make_browsing_app
 
 SESSION_ID = "00000000-0000-4000-8000-00000000000a"
 CWD = "/work/web"
@@ -31,7 +32,7 @@ SCREEN_SIZE = (160, 40)
 
 
 def make_app(claude_tree: ClaudeTree) -> AgentDeskApp:
-    return AgentDeskApp(CatalogService([ClaudeCodeProvider(root=claude_tree.root)]))
+    return make_browsing_app(CatalogService([ClaudeCodeProvider(root=claude_tree.root)]))
 
 
 def shown_lines(app: AgentDeskApp) -> list[str]:
@@ -106,7 +107,7 @@ async def test_screen_responds_before_a_large_transcript_finishes_loading(
     )
     entry_count = len(list(read_transcript_entries(path)))
     provider = HeldBackProvider(root=claude_tree.root)
-    app = AgentDeskApp(CatalogService([provider]))
+    app = make_browsing_app(CatalogService([provider]))
 
     async with app.run_test(size=SCREEN_SIZE) as pilot:
         await pilot.press("enter", "enter")

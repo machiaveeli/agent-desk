@@ -13,6 +13,7 @@ from agent_desk.tui.projects_screen import ProjectsScreen
 from agent_desk.tui.sessions_screen import SessionsScreen
 from fixtures.claude_tree import CORRUPTED_LINE, ClaudeTree, custom_title_line, user_line
 from fixtures.codex_tree import CodexTree, user_message
+from fixtures.tui_app import make_browsing_app
 
 SESSION_OLD = "00000000-0000-4000-8000-00000000000a"
 SESSION_NEW = "00000000-0000-4000-8000-00000000000b"
@@ -30,7 +31,7 @@ STATE_COLUMN = 0
 
 
 def make_app(claude_tree: ClaudeTree) -> AgentDeskApp:
-    return AgentDeskApp(CatalogService([ClaudeCodeProvider(root=claude_tree.root)]))
+    return make_browsing_app(CatalogService([ClaudeCodeProvider(root=claude_tree.root)]))
 
 
 def add_three_sessions(claude_tree: ClaudeTree) -> None:
@@ -105,7 +106,7 @@ async def test_the_active_session_is_marked(codex_tree: CodexTree) -> None:
     path = codex_tree.add_session(CODEX_SESSION, cwd=CWD, created=CODEX_CREATED, lines=lines)
     os.utime(path, (MODIFIED_AT.timestamp(), MODIFIED_AT.timestamp()))
     provider = CodexProvider(root=codex_tree.root, now=lambda: MODIFIED_AT + timedelta(minutes=1))
-    app = AgentDeskApp(CatalogService([provider]))
+    app = make_browsing_app(CatalogService([provider]))
 
     async with app.run_test() as pilot:
         await pilot.press("enter")

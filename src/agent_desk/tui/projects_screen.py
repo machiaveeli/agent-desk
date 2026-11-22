@@ -7,6 +7,7 @@ from textual.widgets import DataTable
 from agent_desk.display import format_moment, format_project_label, format_size
 from agent_desk.domain.errors import ProviderNotFound
 from agent_desk.services.catalog import CatalogService, ProjectOverview
+from agent_desk.services.resume import ResumeService
 from agent_desk.tui.sessions_screen import SessionsScreen
 from agent_desk.tui.table_screen import TableRow, TableScreen
 
@@ -15,9 +16,10 @@ class ProjectsScreen(TableScreen):
     COLUMNS = ("Provider", "Project", "Sessions", "Last activity", "Size")
     FILTER_PLACEHOLDER = "Filter projects (press /)"
 
-    def __init__(self, catalog: CatalogService) -> None:
+    def __init__(self, catalog: CatalogService, resume: ResumeService) -> None:
         super().__init__()
         self.catalog = catalog
+        self.resume = resume
         self.overviews: list[ProjectOverview] = []
 
     def load(self) -> None:
@@ -35,7 +37,7 @@ class ProjectsScreen(TableScreen):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         overview = self.overviews[int(str(event.row_key.value))]
-        self.app.push_screen(SessionsScreen(self.catalog, overview.project))
+        self.app.push_screen(SessionsScreen(self.catalog, self.resume, overview.project))
 
 
 def matches_filter(overview: ProjectOverview, filter_text: str) -> bool:

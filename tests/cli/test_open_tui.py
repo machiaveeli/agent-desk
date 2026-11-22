@@ -5,6 +5,7 @@ from typer.testing import CliRunner
 from agent_desk.cli.main import Dependencies, app
 from agent_desk.domain.errors import ConfigError
 from agent_desk.services.catalog import CatalogService
+from agent_desk.services.resume import ResumeService
 
 EXIT_FAILURE = 1
 
@@ -14,9 +15,11 @@ runner = CliRunner()
 class RecordingTuiRunner:
     def __init__(self) -> None:
         self.catalogs: list[CatalogService] = []
+        self.resume_services: list[ResumeService] = []
 
-    def __call__(self, catalog: CatalogService) -> None:
+    def __call__(self, catalog: CatalogService, resume: ResumeService) -> None:
         self.catalogs.append(catalog)
+        self.resume_services.append(resume)
 
 
 def test_no_command_opens_the_tui_with_the_catalog() -> None:

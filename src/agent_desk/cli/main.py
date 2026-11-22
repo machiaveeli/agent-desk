@@ -26,7 +26,7 @@ PACKAGE_NAME = "agent-desk"
 EXIT_FAILURE = 1
 
 type CatalogLoader = Callable[[], CatalogService | ConfigError]
-type TuiRunner = Callable[[CatalogService], None]
+type TuiRunner = Callable[[CatalogService, ResumeService], None]
 type ProviderOption = Annotated[
     str | None, typer.Option("--provider", help="Show only this AI CLI, e.g. 'codex'.")
 ]
@@ -57,7 +57,10 @@ def main(
     """Browse and manage the local data of AI coding CLIs. With no command, opens the TUI."""
     if ctx.invoked_subcommand is not None:
         return
-    get_dependencies(ctx).run_tui(get_catalog(ctx))
+    dependencies = get_dependencies(ctx)
+    catalog = get_catalog(ctx)
+    resume_service = ResumeService(catalog, dependencies.find_executable, dependencies.launch)
+    dependencies.run_tui(catalog, resume_service)
 
 
 @app.command()
@@ -147,8 +150,8 @@ def get_catalog(ctx: typer.Context, provider_id: str | None = None) -> CatalogSe
     return selected
 
 
-def run_tui(catalog: CatalogService) -> None:
-    AgentDeskApp(catalog).run()
+def run_tui(catalog: CatalogService, resume: ResumeService) -> None:
+    AgentDeskApp(catalog, resume).run()
 
 
 def load_default_catalog() -> CatalogService | ConfigError:
