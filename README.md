@@ -9,6 +9,7 @@ Tools like the Claude Code CLI and the Codex CLI store every session as plain fi
 **Early development. Not usable yet.**
 
 What works today (Claude Code and Codex, read-only except for resume):
+- `agent-desk` with no command opens the dashboard: every project in one table, with a text filter (`/`). `?` shows the keys, `q` quits.
 - `agent-desk projects`: every project with its session count, last activity, and size.
 - `agent-desk sessions --project <path>`: the sessions of one project (`.` for the current folder).
 - `--provider claude-code` or `--provider codex` on both commands shows only that CLI.

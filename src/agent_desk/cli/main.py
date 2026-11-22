@@ -20,11 +20,13 @@ from agent_desk.services.resume import (
     ResumeService,
     run_in_foreground,
 )
+from agent_desk.tui.app import AgentDeskApp
 
 PACKAGE_NAME = "agent-desk"
 EXIT_FAILURE = 1
 
 type CatalogLoader = Callable[[], CatalogService | ConfigError]
+type TuiRunner = Callable[[CatalogService], None]
 type ProviderOption = Annotated[
     str | None, typer.Option("--provider", help="Show only this AI CLI, e.g. 'codex'.")
 ]
@@ -41,6 +43,7 @@ def print_version_and_exit(is_requested: bool) -> None:
 
 @app.callback(invoke_without_command=True)
 def main(
+    ctx: typer.Context,
     show_version: Annotated[
         bool,
         typer.Option(
@@ -51,7 +54,10 @@ def main(
         ),
     ] = False,
 ) -> None:
-    """Browse and manage the local data of AI coding CLIs."""
+    """Browse and manage the local data of AI coding CLIs. With no command, opens the TUI."""
+    if ctx.invoked_subcommand is not None:
+        return
+    get_dependencies(ctx).run_tui(get_catalog(ctx))
 
 
 @app.command()
@@ -118,6 +124,7 @@ class Dependencies:
     load_catalog: CatalogLoader = field(default_factory=lambda: load_default_catalog)
     find_executable: ExecutableFinder = shutil.which
     launch: Launcher = run_in_foreground
+    run_tui: TuiRunner = field(default_factory=lambda: run_tui)
 
 
 def get_dependencies(ctx: typer.Context) -> Dependencies:
@@ -138,6 +145,10 @@ def get_catalog(ctx: typer.Context, provider_id: str | None = None) -> CatalogSe
         typer.echo(f"Error: unknown provider '{provider_id}' (known: {known}).", err=True)
         raise typer.Exit(EXIT_FAILURE)
     return selected
+
+
+def run_tui(catalog: CatalogService) -> None:
+    AgentDeskApp(catalog).run()
 
 
 def load_default_catalog() -> CatalogService | ConfigError:
