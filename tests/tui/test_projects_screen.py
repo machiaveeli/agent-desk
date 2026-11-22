@@ -11,6 +11,7 @@ from agent_desk.services.catalog import CatalogService
 from agent_desk.tui.app import AgentDeskApp
 from fixtures.claude_tree import ClaudeTree, user_line
 from fixtures.codex_tree import CodexTree, user_message
+from fixtures.tui_app import make_browsing_app
 
 CLAUDE_SESSION = "00000000-0000-4000-8000-00000000000a"
 CLAUDE_SESSION_2 = "00000000-0000-4000-8000-00000000000b"
@@ -24,7 +25,7 @@ def make_app(claude_tree: ClaudeTree, codex_tree: CodexTree) -> AgentDeskApp:
     catalog = CatalogService(
         [ClaudeCodeProvider(root=claude_tree.root), CodexProvider(root=codex_tree.root)]
     )
-    return AgentDeskApp(catalog)
+    return make_browsing_app(catalog)
 
 
 def add_claude_project(claude_tree: ClaudeTree) -> None:
