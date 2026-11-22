@@ -6,7 +6,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 
 from agent_desk.domain.errors import ProjectNotFound, ProviderNotFound, UnknownProvider
-from agent_desk.domain.models import Project, SessionSummary
+from agent_desk.domain.models import Project, Session, SessionSummary
 from agent_desk.providers.base import Provider
 
 UNDATED = datetime.min.replace(tzinfo=UTC)
@@ -76,7 +76,22 @@ class CatalogService:
                     summaries += provider.list_sessions(project)
         if not is_known:
             return ProjectNotFound(cwd)
-        return sorted(summaries, key=lambda summary: summary.ended_at or UNDATED, reverse=True)
+        return sort_most_recent_first(summaries)
+
+    def list_project_sessions(self, project: Project) -> list[SessionSummary]:
+        """The sessions of this one project, as the projects list shows it. Providers already
+        return them most recent first."""
+        return self.provider_for(project.provider_id).list_sessions(project)
+
+    def is_active(self, session: Session) -> bool:
+        return self.provider_for(session.provider_id).is_active(session)
+
+    def provider_for(self, provider_id: str) -> Provider:
+        """Sessions and projects always come from this catalog, so a miss is a bug."""
+        for provider in self.providers:
+            if provider.provider_id == provider_id:
+                return provider
+        raise LookupError(f"no provider with id {provider_id!r} in this catalog")
 
     def find_session(self, session_id: str) -> FoundSession | None:
         for provider in self.providers:
@@ -88,6 +103,11 @@ class CatalogService:
                     if summary.session.session_id == session_id:
                         return FoundSession(provider, summary)
         return None
+
+
+def sort_most_recent_first(summaries: list[SessionSummary]) -> list[SessionSummary]:
+    """Undated sessions come last."""
+    return sorted(summaries, key=lambda summary: summary.ended_at or UNDATED, reverse=True)
 
 
 def summarize_project(project: Project, provider: Provider) -> ProjectOverview:
