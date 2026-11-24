@@ -32,6 +32,19 @@ agent-desk only reads and writes files on your machine. It makes no network call
 
 It never edits the contents of a session. When it removes something, the files go to the app's own trash first, so you can restore them. It also refuses to touch a session that is still running.
 
+## Install
+
+You need [uv](https://docs.astral.sh/uv/) and Git. agent-desk is not on PyPI yet, so install it from GitHub, once per machine:
+
+```sh
+uv tool install git+https://github.com/machiaveeli/agent-desk.git
+agent-desk
+```
+
+If the command is not found, run `uv tool update-shell` and open a new terminal.
+
+Update with `uv tool upgrade agent-desk`, and remove with `uv tool uninstall agent-desk`.
+
 ## Run from source
 
 You need [uv](https://docs.astral.sh/uv/).
@@ -40,8 +53,10 @@ You need [uv](https://docs.astral.sh/uv/).
 git clone https://github.com/machiaveeli/agent-desk.git
 cd agent-desk
 uv sync
-uv run agent-desk --version
+uv run agent-desk
 ```
+
+`uv run` works only inside this folder. To use your working copy from any terminal, run `uv tool install --editable .`
 
 Run the checks:
 
