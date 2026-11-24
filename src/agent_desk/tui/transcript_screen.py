@@ -43,27 +43,41 @@ class TranscriptScreen(Screen[None]):
         self.query_one(RichLog).focus()
         self.load_transcript()
 
-    @work(thread=True, exit_on_error=False)
+    @work(thread=True)
     def load_transcript(self) -> None:
         """Runs in a thread, so a large file never freezes the screen. Leaving the screen
         cancels the worker; it stops at the next batch."""
         worker = get_current_worker()
-        entries: Iterator[TranscriptEntry] = self.catalog.read_transcript(self.summary.session)
-        for batch in batched(entries, BATCH_SIZE):
-            if worker.is_cancelled:
-                return
-            self.app.call_from_thread(self.show_entries, batch)
+        try:
+            for batch in batched(self.read_entries(), BATCH_SIZE):
+                if worker.is_cancelled:
+                    return
+                self.app.call_from_thread(self.show_entries, batch)
+        except OSError:
+            note = f"Error: could not read {self.summary.session.path.name}."
+        else:
+            note = f"{self.entry_count} entries."
         if not worker.is_cancelled:
-            self.app.call_from_thread(self.show_done)
+            self.app.call_from_thread(self.show_note, note)
+
+    def read_entries(self) -> Iterator[TranscriptEntry]:
+        return self.catalog.read_transcript(self.summary.session)
 
     def show_entries(self, entries: tuple[TranscriptEntry, ...]) -> None:
+        # Escape may have closed the screen after the worker checked for cancellation.
+        if not self.is_open():
+            return
         log = self.query_one(RichLog)
         for entry in entries:
             log.write(format_entry(entry))
         self.entry_count += len(entries)
 
-    def show_done(self) -> None:
-        self.query_one("#note", Static).update(f"{self.entry_count} entries.")
+    def show_note(self, note: str) -> None:
+        if self.is_open():
+            self.query_one("#note", Static).update(note)
+
+    def is_open(self) -> bool:
+        return self in self.app.screen_stack
 
     def action_back(self) -> None:
         self.app.pop_screen()
