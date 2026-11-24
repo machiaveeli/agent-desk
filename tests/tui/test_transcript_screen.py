@@ -5,6 +5,8 @@ from collections.abc import Iterator
 from dataclasses import dataclass, field
 
 import pytest
+from textual.pilot import Pilot
+from textual.screen import Screen
 from textual.widgets import RichLog, Static
 
 from agent_desk.domain.models import Session, TranscriptEntry
@@ -12,6 +14,7 @@ from agent_desk.providers.claude_code import ClaudeCodeProvider
 from agent_desk.providers.claude_transcript import read_transcript_entries
 from agent_desk.services.catalog import CatalogService
 from agent_desk.tui.app import AgentDeskApp
+from agent_desk.tui.projects_screen import ProjectsScreen
 from agent_desk.tui.sessions_screen import SessionsScreen
 from agent_desk.tui.transcript_screen import TranscriptScreen
 from fixtures.claude_tree import (
@@ -21,12 +24,13 @@ from fixtures.claude_tree import (
     tool_use_block,
     user_line,
 )
-from fixtures.tui_app import make_browsing_app
+from fixtures.tui_app import make_browsing_app, wait_until
 
 SESSION_ID = "00000000-0000-4000-8000-00000000000a"
 CWD = "/work/web"
 FIVE_MEGABYTES = 5 * 1024 * 1024
-WAIT_SECONDS = 10
+WAIT_SECONDS = 60
+LOADING_NOTE = "Loading…"
 # Wide enough that no transcript line in these tests wraps.
 SCREEN_SIZE = (160, 40)
 
@@ -41,6 +45,33 @@ def shown_lines(app: AgentDeskApp) -> list[str]:
 
 def note_of(app: AgentDeskApp) -> str:
     return str(app.screen.query_one("#note", Static).render())
+
+
+def is_ready(app: AgentDeskApp, screen_type: type[Screen[None]]) -> bool:
+    return type(app.screen) is screen_type and app.screen.is_mounted
+
+
+async def open_transcript(app: AgentDeskApp, pilot: Pilot[None]) -> None:
+    """From the projects screen, opens the first session of the first project."""
+    await wait_until(pilot, lambda: is_ready(app, ProjectsScreen))
+    await pilot.press("enter")
+    await wait_until(pilot, lambda: is_ready(app, SessionsScreen))
+    await open_selected_session(app, pilot)
+
+
+async def open_selected_session(app: AgentDeskApp, pilot: Pilot[None]) -> None:
+    await pilot.press("enter")
+    await wait_until(pilot, lambda: is_ready(app, TranscriptScreen))
+
+
+async def go_back_to_sessions(app: AgentDeskApp, pilot: Pilot[None]) -> None:
+    await pilot.press("escape")
+    await wait_until(pilot, lambda: is_ready(app, SessionsScreen))
+
+
+async def wait_for_final_note(app: AgentDeskApp, pilot: Pilot[None]) -> str:
+    await wait_until(pilot, lambda: note_of(app) != LOADING_NOTE)
+    return note_of(app)
 
 
 async def test_enter_on_a_session_shows_its_condensed_transcript(
@@ -58,11 +89,9 @@ async def test_enter_on_a_session_shows_its_condensed_transcript(
     app = make_app(claude_tree)
 
     async with app.run_test(size=SCREEN_SIZE) as pilot:
-        await pilot.press("enter", "enter")
-        await app.workers.wait_for_complete()
-        await pilot.pause()
+        await open_transcript(app, pilot)
+        note = await wait_for_final_note(app, pilot)
         shown = shown_lines(app)
-        note = note_of(app)
 
     assert shown == ["You: List the files", "Assistant: Listing them.", "  [Bash] ls -la"]
     assert note == "3 entries."
@@ -74,12 +103,28 @@ async def test_escape_goes_back_to_the_sessions(claude_tree: ClaudeTree) -> None
     app = make_app(claude_tree)
 
     async with app.run_test(size=SCREEN_SIZE) as pilot:
-        await pilot.press("enter", "enter")
-        opened = app.screen
-        await pilot.press("escape")
-        back = app.screen
+        await open_transcript(app, pilot)
+        await go_back_to_sessions(app, pilot)
+        back = type(app.screen)
 
-    assert (type(opened), type(back)) == (TranscriptScreen, SessionsScreen)
+    assert back is SessionsScreen
+
+
+async def test_a_session_file_that_is_gone_is_reported(claude_tree: ClaudeTree) -> None:
+    project_dir = claude_tree.add_project(CWD)
+    path = claude_tree.add_session(project_dir, SESSION_ID, [user_line("hi", cwd=CWD)])
+    app = make_app(claude_tree)
+
+    async with app.run_test(size=SCREEN_SIZE) as pilot:
+        await wait_until(pilot, lambda: is_ready(app, ProjectsScreen))
+        await pilot.press("enter")
+        await wait_until(pilot, lambda: is_ready(app, SessionsScreen))
+        # Deleted by another program while the list is on screen.
+        path.unlink()
+        await open_selected_session(app, pilot)
+        note = await wait_for_final_note(app, pilot)
+
+    assert note == f"Error: could not read {path.name}."
 
 
 @dataclass(frozen=True)
@@ -110,17 +155,33 @@ async def test_screen_responds_before_a_large_transcript_finishes_loading(
     app = make_browsing_app(CatalogService([provider]))
 
     async with app.run_test(size=SCREEN_SIZE) as pilot:
-        await pilot.press("enter", "enter")
+        await open_transcript(app, pilot)
         while_loading = note_of(app)
-        await pilot.press("escape")
-        screen_after_escape = type(app.screen)
-        await pilot.press("enter")
+        await go_back_to_sessions(app, pilot)
+        await open_selected_session(app, pilot)
         provider.release.set()
-        await app.workers.wait_for_complete()
-        await pilot.pause()
-        when_done = note_of(app)
+        when_done = await wait_for_final_note(app, pilot)
 
-    assert while_loading == "Loading…"
-    assert screen_after_escape is SessionsScreen
+    assert while_loading == LOADING_NOTE
     # Opened again and left to finish: every entry arrived, across many batches.
     assert when_done == f"{entry_count} entries."
+
+
+async def test_entries_that_arrive_after_the_screen_closed_are_ignored(
+    claude_tree: ClaudeTree,
+) -> None:
+    project_dir = claude_tree.add_project(CWD)
+    claude_tree.add_session(project_dir, SESSION_ID, [user_line("hi", cwd=CWD)])
+    app = make_app(claude_tree)
+
+    async with app.run_test(size=SCREEN_SIZE) as pilot:
+        await open_transcript(app, pilot)
+        await wait_for_final_note(app, pilot)
+        transcript = app.screen
+        assert isinstance(transcript, TranscriptScreen)
+        await go_back_to_sessions(app, pilot)
+        # The worker checked for cancellation just before Escape, then handed these over.
+        transcript.show_entries((TranscriptEntry("user", "late"),))
+        transcript.show_note("late")
+
+    assert transcript.entry_count == 1
