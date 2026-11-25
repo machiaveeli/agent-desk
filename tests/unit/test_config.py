@@ -2,9 +2,10 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import platformdirs
 import pytest
 
-from agent_desk.config import Config, default_config_path, load_config
+from agent_desk.config import Config, default_config_path, default_trash_root, load_config
 from agent_desk.domain.errors import ConfigError
 
 
@@ -177,3 +178,12 @@ def test_default_config_path_is_inside_app_config_dir() -> None:
     path = default_config_path()
 
     assert (path.parent.name, path.name) == ("agent-desk", "config.toml")
+
+
+def test_default_trash_root_is_inside_app_data_dir() -> None:
+    root = default_trash_root()
+
+    assert (root.parent, root.name) == (
+        platformdirs.user_data_path("agent-desk", appauthor=False),
+        "trash",
+    )

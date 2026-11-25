@@ -1,7 +1,7 @@
 from datetime import datetime
 from pathlib import Path
 
-from agent_desk.cli.main import build_catalog
+from agent_desk.cli.main import build_catalog, build_trash
 from agent_desk.config import Config
 from agent_desk.domain.errors import ProviderNotFound
 from agent_desk.providers.codex import CodexProvider
@@ -12,7 +12,7 @@ CLAUDE_SESSION = "00000000-0000-4000-8000-000000000001"
 CODEX_SESSION = "00000000-0000-4000-8000-0000000000c1"
 CWD = "/work/app"
 CREATED = datetime(2026, 1, 1, 10, 0, 0)
-TRASH_RETENTION_DAYS = 30
+TRASH_RETENTION_DAYS = 12
 CODEX_THRESHOLD_MINUTES = 25
 
 
@@ -70,3 +70,19 @@ def test_codex_provider_gets_the_configured_active_threshold(
 
     assert isinstance(codex, CodexProvider)
     assert codex.active_threshold_minutes == CODEX_THRESHOLD_MINUTES
+
+
+def test_trash_gets_the_configured_retention_and_the_catalog_activity_check(
+    claude_tree: ClaudeTree, codex_tree: CodexTree, tmp_path: Path
+) -> None:
+    config = make_config(claude_tree, codex_tree)
+    catalog = build_catalog(config)
+
+    trash = build_trash(config, catalog, tmp_path / "trash")
+
+    assert (trash.root, trash.retention_days, trash.is_active) == (
+        tmp_path / "trash",
+        TRASH_RETENTION_DAYS,
+        catalog.is_active,
+    )
+    assert trash.now().utcoffset() is not None

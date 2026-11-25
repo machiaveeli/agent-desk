@@ -3,9 +3,17 @@
 from collections.abc import Sequence
 from datetime import tzinfo
 
-from agent_desk.display import format_moment, format_project_label, format_size, format_title
+from agent_desk.display import (
+    format_cwd,
+    format_moment,
+    format_project_label,
+    format_size,
+    format_title,
+    format_trash_status,
+)
 from agent_desk.domain.models import SessionSummary
 from agent_desk.services.catalog import ProjectOverview
+from agent_desk.services.trash import ListedEntry
 
 COLUMN_GAP = "  "
 
@@ -39,6 +47,23 @@ def format_sessions_table(summaries: Sequence[SessionSummary], tz: tzinfo | None
     ]
     # The title goes last: it is the widest column and the only one of free text.
     return format_table(["PROVIDER", "ID", "STARTED", "ENDED", "SIZE", "TITLE"], rows)
+
+
+def format_trash_table(entries: Sequence[ListedEntry], tz: tzinfo | None = None) -> str:
+    rows = [
+        [
+            listed.entry.entry_id,
+            format_moment(listed.entry.trashed_at, tz),
+            format_size(listed.entry.size_bytes),
+            format_trash_status(listed),
+            listed.entry.provider_id,
+            format_cwd(listed.entry.cwd),
+            format_title(listed.entry.title),
+        ]
+        for listed in entries
+    ]
+    headers = ["ID", "TRASHED", "SIZE", "STATUS", "PROVIDER", "PROJECT", "TITLE"]
+    return format_table(headers, rows)
 
 
 def format_table(headers: Sequence[str], rows: Sequence[Sequence[str]]) -> str:

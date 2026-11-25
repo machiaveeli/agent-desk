@@ -1,9 +1,11 @@
 """Turns domain values into short display text, shared by the CLI tables and the TUI."""
 
 from datetime import datetime, tzinfo
+from pathlib import Path
 
 from agent_desk.domain.models import Project
 from agent_desk.domain.text import truncate
+from agent_desk.services.trash import ListedEntry
 
 TITLE_MAX_LENGTH = 60
 MOMENT_FORMAT = "%Y-%m-%d %H:%M"
@@ -39,3 +41,17 @@ def format_size(size_bytes: int) -> str:
             return f"{size:.1f} {unit}"
         size /= BYTES_PER_UNIT
     return f"{size:.1f} {SIZE_UNITS[-1]}"
+
+
+def format_trash_status(listed: ListedEntry) -> str:
+    """ "incomplete" wins over "expired": `trash empty` never deletes an incomplete entry, so
+    restoring it is the only way out."""
+    if listed.entry.state == "pending":
+        return "incomplete"
+    if listed.is_expired:
+        return "expired"
+    return NO_VALUE
+
+
+def format_cwd(cwd: Path | None) -> str:
+    return NO_VALUE if cwd is None else str(cwd)

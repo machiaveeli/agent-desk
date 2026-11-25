@@ -8,12 +8,15 @@ Tools like the Claude Code CLI and the Codex CLI store every session as plain fi
 
 **Early development. Not usable yet.**
 
-What works today (Claude Code and Codex, read-only except for resume):
+What works today (Claude Code and Codex; only the trash moves files):
 - `agent-desk` with no command opens the dashboard: every project in one table, with a text filter (`/`). Enter opens a project's sessions, which sort by date or size (`s`) and filter by title or date; running sessions are marked `active`. Enter on a session shows its condensed transcript (your messages, the replies, and one line per tool call), loaded in the background. `r` resumes the selected session in its own CLI (it asks first if the session is open somewhere else) and brings you back to the same place when you exit. Escape goes back, `?` shows the keys, `q` quits.
 - `agent-desk projects`: every project with its session count, last activity, and size.
 - `agent-desk sessions --project <path>`: the sessions of one project (`.` for the current folder).
 - `--provider claude-code` or `--provider codex` on both commands shows only that CLI.
 - `agent-desk resume <session-id>`: reopen a session in `claude` or `codex`, inside its project folder.
+- `agent-desk trash list`: what is in the app trash, newest first. Entries older than the retention (30 days by default, `[trash] retention_days` in the config) are marked `expired`.
+- `agent-desk trash restore <id>`: move a trashed session back where it was. It refuses, changing nothing, if a file already exists at that path.
+- `agent-desk trash empty`: delete the expired entries for good, after showing them and asking (the answer defaults to no). This is the only command that deletes anything.
 - `agent-desk --version`
 
 Codex sessions are read from `~/.codex/sessions` (or `$CODEX_HOME`). Compressed (`.jsonl.zst`) and archived sessions are not shown yet.

@@ -2,15 +2,27 @@ import os
 import shutil
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from datetime import UTC, datetime
 from importlib.metadata import version
 from pathlib import Path
 from typing import Annotated
 
 import typer
 
-from agent_desk.cli.formatting import format_projects_table, format_sessions_table
-from agent_desk.config import Config, default_config_path, load_config
-from agent_desk.domain.errors import ConfigError, ProjectNotFound, ResumeError, UnknownProvider
+from agent_desk.cli.formatting import (
+    format_projects_table,
+    format_sessions_table,
+    format_trash_table,
+)
+from agent_desk.config import Config, default_config_path, default_trash_root, load_config
+from agent_desk.display import format_cwd
+from agent_desk.domain.errors import (
+    ConfigError,
+    ProjectNotFound,
+    ResumeError,
+    TrashError,
+    UnknownProvider,
+)
 from agent_desk.providers.claude_code import ClaudeCodeProvider
 from agent_desk.providers.codex import CodexProvider
 from agent_desk.services.catalog import CatalogService
@@ -20,18 +32,22 @@ from agent_desk.services.resume import (
     ResumeService,
     run_in_foreground,
 )
+from agent_desk.services.trash import TrashService
 from agent_desk.tui.app import AgentDeskApp
 
 PACKAGE_NAME = "agent-desk"
 EXIT_FAILURE = 1
 
 type CatalogLoader = Callable[[], CatalogService | ConfigError]
+type TrashLoader = Callable[[CatalogService], TrashService | ConfigError]
 type TuiRunner = Callable[[CatalogService, ResumeService], None]
 type ProviderOption = Annotated[
     str | None, typer.Option("--provider", help="Show only this AI CLI, e.g. 'codex'.")
 ]
 
 app = typer.Typer(add_completion=False)
+trash_app = typer.Typer(help="List, restore and empty the agent-desk trash.")
+app.add_typer(trash_app, name="trash")
 
 
 def print_version_and_exit(is_requested: bool) -> None:
@@ -119,6 +135,52 @@ def resume(
     raise typer.Exit(service.launch_plan(plan))
 
 
+@trash_app.command("list")
+def list_trash(ctx: typer.Context) -> None:
+    """List the trash, most recent first; 'expired' entries go on the next `trash empty`."""
+    listing = get_trash(ctx).list_entries()
+    for unreadable in listing.unreadable:
+        typer.echo(
+            f"Note: entry {unreadable.entry_id} cannot be read: {unreadable.detail}.", err=True
+        )
+    if not listing.entries:
+        typer.echo("The trash is empty.")
+        return
+    typer.echo(format_trash_table(listing.entries))
+
+
+@trash_app.command("restore")
+def restore_trash(
+    ctx: typer.Context,
+    entry_id: Annotated[str, typer.Argument(help="The entry id, as `trash list` shows it.")],
+) -> None:
+    """Move a trashed session back to where it was."""
+    entry = get_trash(ctx).restore(entry_id)
+    if isinstance(entry, TrashError):
+        typer.echo(f"Error: {entry.detail}", err=True)
+        raise typer.Exit(EXIT_FAILURE)
+    typer.echo(f"Restored '{entry.title}' ({entry.provider_id}, {format_cwd(entry.cwd)}).")
+
+
+@trash_app.command("empty")
+def empty_trash(ctx: typer.Context) -> None:
+    """Delete the expired entries for good, after confirmation."""
+    trash = get_trash(ctx)
+    planned = trash.plan_empty()
+    if not planned:
+        typer.echo("No expired entries to delete.")
+        return
+    listing = trash.list_entries().entries
+    typer.echo(format_trash_table([listed for listed in listing if listed.entry in planned]))
+    if not typer.confirm(f"Delete {len(planned)} expired entries for good?", default=False):
+        raise typer.Exit(EXIT_FAILURE)
+    deleted = trash.empty(planned)
+    typer.echo(f"Deleted {len(deleted)} entries.")
+    if len(deleted) < len(planned):
+        skipped = len(planned) - len(deleted)
+        typer.echo(f"Note: {skipped} entries changed meanwhile and were kept.", err=True)
+
+
 @dataclass(frozen=True)
 class Dependencies:
     """What the commands use from the outside world. Tests pass their own through Typer's
@@ -128,6 +190,7 @@ class Dependencies:
     find_executable: ExecutableFinder = shutil.which
     launch: Launcher = run_in_foreground
     run_tui: TuiRunner = field(default_factory=lambda: run_tui)
+    load_trash: TrashLoader = field(default_factory=lambda: load_default_trash)
 
 
 def get_dependencies(ctx: typer.Context) -> Dependencies:
@@ -150,6 +213,14 @@ def get_catalog(ctx: typer.Context, provider_id: str | None = None) -> CatalogSe
     return selected
 
 
+def get_trash(ctx: typer.Context) -> TrashService:
+    trash = get_dependencies(ctx).load_trash(get_catalog(ctx))
+    if isinstance(trash, ConfigError):
+        typer.echo(f"Error: config: {trash.detail}", err=True)
+        raise typer.Exit(EXIT_FAILURE)
+    return trash
+
+
 def run_tui(catalog: CatalogService, resume: ResumeService) -> None:
     AgentDeskApp(catalog, resume).run()
 
@@ -159,6 +230,22 @@ def load_default_catalog() -> CatalogService | ConfigError:
     if isinstance(config, ConfigError):
         return config
     return build_catalog(config)
+
+
+def load_default_trash(catalog: CatalogService) -> TrashService | ConfigError:
+    config = load_config(default_config_path(), os.environ, Path.home())
+    if isinstance(config, ConfigError):
+        return config
+    return build_trash(config, catalog, default_trash_root())
+
+
+def build_trash(config: Config, catalog: CatalogService, root: Path) -> TrashService:
+    return TrashService(
+        root=root,
+        is_active=catalog.is_active,
+        now=lambda: datetime.now(UTC),
+        retention_days=config.trash_retention_days,
+    )
 
 
 def build_catalog(config: Config) -> CatalogService:
