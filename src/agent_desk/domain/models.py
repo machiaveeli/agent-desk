@@ -73,6 +73,40 @@ class TranscriptEntry:
     tool_name: str | None = None
 
 
+type TrashItemKind = Literal["file", "dir"]
+# "pending" from the moment the manifest is written until every item has moved.
+type TrashEntryState = Literal["pending", "complete"]
+
+
+@dataclass(frozen=True)
+class TrashItem:
+    """One file or folder of a trashed session, kept as `files/<stored_name>` in its entry."""
+
+    original_path: Path
+    stored_name: str
+    kind: TrashItemKind
+    size_bytes: int
+
+
+@dataclass(frozen=True)
+class TrashEntry:
+    """A session in the trash. `cwd` and `title` are saved when it is trashed, so the trash can
+    be listed without reading the stored files."""
+
+    entry_id: str
+    state: TrashEntryState
+    provider_id: str
+    session_id: str
+    cwd: Path | None
+    title: str
+    trashed_at: datetime
+    items: tuple[TrashItem, ...]
+
+    @property
+    def size_bytes(self) -> int:
+        return sum(item.size_bytes for item in self.items)
+
+
 def validate_time_range(started_at: datetime | None, ended_at: datetime | None) -> None:
     if started_at is None and ended_at is None:
         return

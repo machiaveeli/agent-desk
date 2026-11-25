@@ -48,3 +48,14 @@ class ResumeError:
 
     reason: ResumeErrorReason
     detail: str
+
+
+type TrashErrorReason = Literal["not_found", "session_active", "already_trashed"]
+
+
+@dataclass(frozen=True)
+class TrashError:
+    """Why the trash refused an operation; nothing changed on disk. `detail` is for the user."""
+
+    reason: TrashErrorReason
+    detail: str
