@@ -50,7 +50,15 @@ class ResumeError:
     detail: str
 
 
-type TrashErrorReason = Literal["not_found", "session_active", "already_trashed"]
+type TrashErrorReason = Literal[
+    "not_found",
+    "session_active",
+    "already_trashed",
+    "entry_not_found",
+    "corrupted_manifest",
+    "conflict",
+    "missing_files",
+]
 
 
 @dataclass(frozen=True)
