@@ -136,7 +136,7 @@ def test_the_manifest_on_disk_follows_the_approved_format(
         "state": "complete",
         "provider_id": "claude-code",
         "session_id": SESSION_ID,
-        "cwd": CWD,
+        "cwd": str(Path(CWD)),
         "title": TITLE,
         "trashed_at": "2026-11-23T14:05:12Z",
         "items": [
