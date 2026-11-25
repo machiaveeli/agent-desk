@@ -8,6 +8,7 @@ from textual.widgets import HelpPanel
 
 from agent_desk.services.catalog import CatalogService
 from agent_desk.services.resume import ResumeService
+from agent_desk.services.trash import TrashService
 from agent_desk.tui.projects_screen import ProjectsScreen
 
 
@@ -18,13 +19,14 @@ class AgentDeskApp(App[None]):
         Binding("question_mark", "toggle_help", "Help"),
     ]
 
-    def __init__(self, catalog: CatalogService, resume: ResumeService) -> None:
+    def __init__(self, catalog: CatalogService, resume: ResumeService, trash: TrashService) -> None:
         super().__init__()
         self.catalog = catalog
         self.resume = resume
+        self.trash = trash
 
     def on_mount(self) -> None:
-        self.push_screen(ProjectsScreen(self.catalog, self.resume))
+        self.push_screen(ProjectsScreen(self.catalog, self.resume, self.trash))
 
     def action_toggle_help(self) -> None:
         if self.screen.query(HelpPanel):

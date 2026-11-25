@@ -1,25 +1,31 @@
 """The first screen: every project of every provider, with a text filter."""
 
 from collections.abc import Iterable, Sequence
+from typing import ClassVar
 
+from textual.binding import Binding, BindingType
 from textual.widgets import DataTable
 
 from agent_desk.display import format_moment, format_project_label, format_size
 from agent_desk.domain.errors import ProviderNotFound
 from agent_desk.services.catalog import CatalogService, ProjectOverview
 from agent_desk.services.resume import ResumeService
+from agent_desk.services.trash import TrashService
 from agent_desk.tui.sessions_screen import SessionsScreen
 from agent_desk.tui.table_screen import TableRow, TableScreen
+from agent_desk.tui.trash_screen import TrashScreen
 
 
 class ProjectsScreen(TableScreen):
+    BINDINGS: ClassVar[list[BindingType]] = [Binding("t", "open_trash", "Trash")]
     COLUMNS = ("Provider", "Project", "Sessions", "Last activity", "Size")
     FILTER_PLACEHOLDER = "Filter projects (press /)"
 
-    def __init__(self, catalog: CatalogService, resume: ResumeService) -> None:
+    def __init__(self, catalog: CatalogService, resume: ResumeService, trash: TrashService) -> None:
         super().__init__()
         self.catalog = catalog
         self.resume = resume
+        self.trash = trash
         self.overviews: list[ProjectOverview] = []
 
     def load(self) -> None:
@@ -37,7 +43,17 @@ class ProjectsScreen(TableScreen):
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         overview = self.overviews[int(str(event.row_key.value))]
-        self.app.push_screen(SessionsScreen(self.catalog, self.resume, overview.project))
+        sessions = SessionsScreen(self.catalog, self.resume, self.trash, overview.project)
+        self.app.push_screen(sessions, self.reload)
+
+    def action_open_trash(self) -> None:
+        self.app.push_screen(TrashScreen(self.trash), self.reload)
+
+    def reload(self, result: None = None) -> None:
+        """Runs when a screen opened from here closes: sessions may have been trashed,
+        restored or resumed meanwhile, so the counts and sizes are read again."""
+        self.load()
+        self.show_rows()
 
 
 def matches_filter(overview: ProjectOverview, filter_text: str) -> bool:

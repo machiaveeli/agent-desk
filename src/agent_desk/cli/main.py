@@ -40,7 +40,7 @@ EXIT_FAILURE = 1
 
 type CatalogLoader = Callable[[], CatalogService | ConfigError]
 type TrashLoader = Callable[[CatalogService], TrashService | ConfigError]
-type TuiRunner = Callable[[CatalogService, ResumeService], None]
+type TuiRunner = Callable[[CatalogService, ResumeService, TrashService], None]
 type ProviderOption = Annotated[
     str | None, typer.Option("--provider", help="Show only this AI CLI, e.g. 'codex'.")
 ]
@@ -76,7 +76,7 @@ def main(
     dependencies = get_dependencies(ctx)
     catalog = get_catalog(ctx)
     resume_service = ResumeService(catalog, dependencies.find_executable, dependencies.launch)
-    dependencies.run_tui(catalog, resume_service)
+    dependencies.run_tui(catalog, resume_service, get_trash(ctx, catalog))
 
 
 @app.command()
@@ -138,7 +138,7 @@ def resume(
 @trash_app.command("list")
 def list_trash(ctx: typer.Context) -> None:
     """List the trash, most recent first; 'expired' entries go on the next `trash empty`."""
-    listing = get_trash(ctx).list_entries()
+    listing = get_trash(ctx, get_catalog(ctx)).list_entries()
     for unreadable in listing.unreadable:
         typer.echo(
             f"Note: entry {unreadable.entry_id} cannot be read: {unreadable.detail}.", err=True
@@ -155,7 +155,7 @@ def restore_trash(
     entry_id: Annotated[str, typer.Argument(help="The entry id, as `trash list` shows it.")],
 ) -> None:
     """Move a trashed session back to where it was."""
-    entry = get_trash(ctx).restore(entry_id)
+    entry = get_trash(ctx, get_catalog(ctx)).restore(entry_id)
     if isinstance(entry, TrashError):
         typer.echo(f"Error: {entry.detail}", err=True)
         raise typer.Exit(EXIT_FAILURE)
@@ -165,7 +165,7 @@ def restore_trash(
 @trash_app.command("empty")
 def empty_trash(ctx: typer.Context) -> None:
     """Delete the expired entries for good, after confirmation."""
-    trash = get_trash(ctx)
+    trash = get_trash(ctx, get_catalog(ctx))
     planned = trash.plan_empty()
     if not planned:
         typer.echo("No expired entries to delete.")
@@ -213,16 +213,16 @@ def get_catalog(ctx: typer.Context, provider_id: str | None = None) -> CatalogSe
     return selected
 
 
-def get_trash(ctx: typer.Context) -> TrashService:
-    trash = get_dependencies(ctx).load_trash(get_catalog(ctx))
+def get_trash(ctx: typer.Context, catalog: CatalogService) -> TrashService:
+    trash = get_dependencies(ctx).load_trash(catalog)
     if isinstance(trash, ConfigError):
         typer.echo(f"Error: config: {trash.detail}", err=True)
         raise typer.Exit(EXIT_FAILURE)
     return trash
 
 
-def run_tui(catalog: CatalogService, resume: ResumeService) -> None:
-    AgentDeskApp(catalog, resume).run()
+def run_tui(catalog: CatalogService, resume: ResumeService, trash: TrashService) -> None:
+    AgentDeskApp(catalog, resume, trash).run()
 
 
 def load_default_catalog() -> CatalogService | ConfigError:
