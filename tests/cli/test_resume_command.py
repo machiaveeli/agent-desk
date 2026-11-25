@@ -88,6 +88,17 @@ def test_resume_of_an_active_session_asks_first_and_stops_on_no(
     assert launched == []
 
 
+def test_resume_of_an_active_session_defaults_to_no(claude_tree: ClaudeTree, cwd: Path) -> None:
+    claude_tree.add_active_session_file(pid=PID, session_id=SESSION_ID, cwd=str(cwd))
+    launched: list[tuple[list[str], Path]] = []
+
+    result = run(
+        claude_tree, ["resume", SESSION_ID], launched=launched, is_active=True, user_input="\n"
+    )
+
+    assert (result.exit_code, launched) == (EXIT_FAILURE, [])
+
+
 def test_resume_of_an_active_session_goes_on_after_yes(claude_tree: ClaudeTree, cwd: Path) -> None:
     claude_tree.add_active_session_file(pid=PID, session_id=SESSION_ID, cwd=str(cwd))
     launched: list[tuple[list[str], Path]] = []

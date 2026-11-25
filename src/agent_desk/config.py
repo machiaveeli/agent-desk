@@ -9,6 +9,7 @@ from agent_desk.domain.errors import ConfigError
 
 APP_NAME = "agent-desk"
 CONFIG_FILE_NAME = "config.toml"
+TRASH_DIR_NAME = "trash"
 
 CLAUDE_PROVIDER_ID = "claude-code"
 CLAUDE_DEFAULT_DIR_NAME = ".claude"
@@ -46,6 +47,10 @@ class Config:
 
 def default_config_path() -> Path:
     return platformdirs.user_config_path(APP_NAME, appauthor=False) / CONFIG_FILE_NAME
+
+
+def default_trash_root() -> Path:
+    return platformdirs.user_data_path(APP_NAME, appauthor=False) / TRASH_DIR_NAME
 
 
 def load_config(path: Path, env: Mapping[str, str], home: Path) -> Config | ConfigError:
