@@ -115,7 +115,8 @@ def test_across_volumes_a_link_inside_the_folder_stays_a_link(
     move_path(folder, target_volume / "session", rename=cross_device_rename)
 
     moved_link = target_volume / "session" / "link.txt"
-    assert (moved_link.is_symlink(), moved_link.readlink()) == (True, outside)
+    # resolve(), not readlink(): on Windows readlink returns the target with a \\?\ prefix.
+    assert (moved_link.is_symlink(), moved_link.resolve()) == (True, outside.resolve())
 
 
 def test_a_copy_that_fails_midway_leaves_the_source_intact_and_no_partial_target(
