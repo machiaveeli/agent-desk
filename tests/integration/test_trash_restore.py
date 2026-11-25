@@ -22,6 +22,7 @@ SESSION_ID = "3f2a9c1e-0000-4000-8000-000000000001"
 CWD = "/work/app"
 TITLE = "Fix the login bug"
 NOW = datetime(2026, 11, 23, 14, 5, 12, tzinfo=UTC)
+RETENTION_DAYS = 30
 ENTRY_ID = "20261123T140512Z-3f2a9c1e"
 
 
@@ -48,7 +49,9 @@ def trash_root(tmp_path: Path) -> Path:
 
 @pytest.fixture
 def service(trash_root: Path) -> TrashService:
-    return TrashService(root=trash_root, is_active=lambda _: False, now=lambda: NOW)
+    return TrashService(
+        root=trash_root, is_active=lambda _: False, now=lambda: NOW, retention_days=RETENTION_DAYS
+    )
 
 
 def claude_catalog(claude_tree: ClaudeTree) -> CatalogService:
@@ -97,6 +100,7 @@ def test_the_round_trip_is_byte_identical_when_the_trash_is_on_another_volume(
         root=trash_root,
         is_active=lambda _: False,
         now=lambda: NOW,
+        retention_days=RETENTION_DAYS,
         move=partial(move_path, rename=cross_device_rename),
     )
     service.trash(summary)
@@ -258,6 +262,7 @@ def test_an_entry_left_pending_by_a_crash_restores_everything_to_its_place(
         root=trash_root,
         is_active=lambda _: False,
         now=lambda: NOW,
+        retention_days=RETENTION_DAYS,
         move=FailingMove(fail_on=SESSION_ID),
     )
     with pytest.raises(OSError, match="simulated failure"):

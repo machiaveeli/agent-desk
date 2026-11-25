@@ -23,6 +23,7 @@ SUBAGENT_TEXT = "{}\n"
 # The two files add_claude_session writes inside the sibling folder.
 SIBLING_SIZE = len(SUBAGENT_TEXT) + len(json.dumps({"customTitle": TITLE}))
 NOW = datetime(2026, 11, 23, 14, 5, 12, 345678, tzinfo=UTC)
+RETENTION_DAYS = 30
 ENTRY_ID = "20261123T140512Z-3f2a9c1e"
 
 
@@ -44,7 +45,13 @@ def trash_root(tmp_path: Path) -> Path:
 
 
 def make_service(trash_root: Path, move: Mover = move_path) -> TrashService:
-    return TrashService(root=trash_root, is_active=lambda _: False, now=lambda: NOW, move=move)
+    return TrashService(
+        root=trash_root,
+        is_active=lambda _: False,
+        now=lambda: NOW,
+        retention_days=RETENTION_DAYS,
+        move=move,
+    )
 
 
 def add_claude_session(claude_tree: ClaudeTree) -> SessionSummary:
@@ -238,7 +245,12 @@ def test_the_entry_time_is_stored_in_utc_whatever_the_clock_timezone(
 ) -> None:
     summary = add_claude_session(claude_tree)
     local_now = NOW.astimezone(timezone(timedelta(hours=-3)))
-    service = TrashService(root=trash_root, is_active=lambda _: False, now=lambda: local_now)
+    service = TrashService(
+        root=trash_root,
+        is_active=lambda _: False,
+        now=lambda: local_now,
+        retention_days=RETENTION_DAYS,
+    )
 
     entry = service.trash(summary)
 

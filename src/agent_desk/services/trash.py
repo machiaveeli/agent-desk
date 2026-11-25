@@ -3,9 +3,10 @@
 Each entry is a folder `<root>/<entry-id>/` with `manifest.json` and the moved files under
 `files/`. Only `trash empty` deletes anything for good."""
 
+import shutil
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from agent_desk.domain.errors import TrashError
@@ -29,12 +30,72 @@ type ActivityCheck = Callable[[Session], bool]
 
 
 @dataclass(frozen=True)
+class ListedEntry:
+    entry: TrashEntry
+    is_expired: bool
+
+
+@dataclass(frozen=True)
+class UnreadableEntry:
+    """An entry folder whose manifest cannot be read. It is shown but never emptied."""
+
+    entry_id: str
+    detail: str
+
+
+@dataclass(frozen=True)
+class TrashListing:
+    entries: list[ListedEntry]
+    unreadable: list[UnreadableEntry]
+
+
+@dataclass(frozen=True)
 class TrashService:
     root: Path
     is_active: ActivityCheck
     # Injected so tests control the time stamped on entries and can make a move fail.
     now: Clock
+    retention_days: int
     move: Mover = move_path
+
+    def list_entries(self) -> TrashListing:
+        """Most recently trashed first."""
+        entries: list[ListedEntry] = []
+        unreadable: list[UnreadableEntry] = []
+        for entry_dir, entry in self.read_entries():
+            if isinstance(entry, ManifestError):
+                unreadable.append(UnreadableEntry(entry_dir.name, entry.detail))
+                continue
+            entries.append(ListedEntry(entry, self.is_expired(entry)))
+        entries.sort(key=lambda listed: listed.entry.trashed_at, reverse=True)
+        return TrashListing(entries, unreadable)
+
+    def plan_empty(self) -> list[TrashEntry]:
+        """What `empty` would delete: complete entries past the retention. A pending entry is
+        never planned, since part of the session may still sit in the provider folder."""
+        return [
+            listed.entry
+            for listed in self.list_entries().entries
+            if listed.is_expired and listed.entry.state == "complete"
+        ]
+
+    def empty(self, planned: list[TrashEntry]) -> list[TrashEntry]:
+        """Deletes the planned entries for good, the only hard delete in agent-desk. Each one is
+        read again first and skipped unless it is unchanged and still expired, since time passed
+        while the user was asked to confirm."""
+        deleted: list[TrashEntry] = []
+        for entry in planned:
+            entry_dir = self.find_entry_dir(entry.entry_id)
+            if entry_dir is None or read_manifest(entry_dir) != entry:
+                continue
+            if entry.state != "complete" or not self.is_expired(entry):
+                continue
+            shutil.rmtree(entry_dir)
+            deleted.append(entry)
+        return deleted
+
+    def is_expired(self, entry: TrashEntry) -> bool:
+        return self.now() - entry.trashed_at > timedelta(days=self.retention_days)
 
     def trash(self, summary: SessionSummary) -> TrashEntry | TrashError:
         session = summary.session
@@ -110,7 +171,7 @@ class TrashService:
         return entry_dir if entry_dir.is_dir() else None
 
     def find_entry(self, session: Session) -> TrashEntry | None:
-        for entry in self.read_entries():
+        for _, entry in self.read_entries():
             if isinstance(entry, TrashEntry) and (entry.provider_id, entry.session_id) == (
                 session.provider_id,
                 session.session_id,
@@ -118,12 +179,12 @@ class TrashService:
                 return entry
         return None
 
-    def read_entries(self) -> Iterator[TrashEntry | ManifestError]:
+    def read_entries(self) -> Iterator[tuple[Path, TrashEntry | ManifestError]]:
         if not self.root.is_dir():
             return
         for entry_dir in sorted(self.root.iterdir()):
             if entry_dir.is_dir():
-                yield read_manifest(entry_dir)
+                yield entry_dir, read_manifest(entry_dir)
 
     def create_entry_dir(self, session: Session, trashed_at: datetime) -> Path:
         """`<time>-<short session id>`, so a plain listing sorts by date. Two sessions can share
