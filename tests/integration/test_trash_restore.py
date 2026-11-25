@@ -1,6 +1,8 @@
+import errno
 import json
 import shutil
 from datetime import UTC, datetime
+from functools import partial
 from pathlib import Path
 
 import pytest
@@ -10,6 +12,7 @@ from agent_desk.domain.models import SessionSummary, TrashEntry
 from agent_desk.providers.claude_code import ClaudeCodeProvider
 from agent_desk.providers.codex import CodexProvider
 from agent_desk.services.catalog import CatalogService
+from agent_desk.services.file_move import move_path
 from agent_desk.services.trash import TrashService
 from fixtures.claude_tree import ClaudeTree, custom_title_line, user_line
 from fixtures.codex_tree import CodexTree, user_message
@@ -32,6 +35,10 @@ class FailingMove:
         if source.name == self.fail_on:
             raise OSError("simulated failure")
         source.rename(target)
+
+
+def cross_device_rename(source: Path, target: Path) -> None:
+    raise OSError(errno.EXDEV, "Invalid cross-device link")
 
 
 @pytest.fixture
@@ -79,6 +86,24 @@ def test_trash_then_restore_leaves_the_provider_folder_byte_identical(
 
     assert isinstance(restored, TrashEntry)
     assert snapshot(claude_tree.root) == before
+
+
+def test_the_round_trip_is_byte_identical_when_the_trash_is_on_another_volume(
+    claude_tree: ClaudeTree, trash_root: Path
+) -> None:
+    summary = add_claude_session(claude_tree)
+    before = snapshot(claude_tree.root)
+    service = TrashService(
+        root=trash_root,
+        is_active=lambda _: False,
+        now=lambda: NOW,
+        move=partial(move_path, rename=cross_device_rename),
+    )
+    service.trash(summary)
+
+    service.restore(ENTRY_ID)
+
+    assert (snapshot(claude_tree.root), snapshot(trash_root)) == (before, {})
 
 
 def test_a_restored_entry_leaves_the_trash(
