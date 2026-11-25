@@ -43,7 +43,13 @@ agent-desk
 
 If the command is not found, run `uv tool update-shell` and open a new terminal.
 
-Update with `uv tool upgrade agent-desk`, and remove with `uv tool uninstall agent-desk`.
+The installed copy does not follow the repository by itself. To get the latest `main`, run:
+
+```sh
+uv tool upgrade agent-desk
+```
+
+If that keeps the old code, reinstall with `uv tool install --reinstall git+https://github.com/machiaveeli/agent-desk.git`. Remove with `uv tool uninstall agent-desk`.
 
 ## Run from source
 
@@ -56,7 +62,7 @@ uv sync
 uv run agent-desk
 ```
 
-`uv run` works only inside this folder. To use your working copy from any terminal, run `uv tool install --editable .`
+`uv run` works only inside this folder. To use your working copy from any terminal, run `uv tool install --editable .` The command then runs the code in this folder, so `git pull` is enough to update it. Run `uv tool install --editable . --reinstall` only when the dependencies change.
 
 Run the checks:
 
