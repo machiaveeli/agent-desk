@@ -22,6 +22,7 @@ SESSION_ID = "3f2a9c1e-0000-4000-8000-000000000001"
 CWD = "/work/app"
 PID = 4242
 NOW = datetime(2026, 11, 23, 14, 5, 12, tzinfo=UTC)
+RETENTION_DAYS = 30
 CODEX_THRESHOLD_MINUTES = 10
 
 
@@ -50,7 +51,9 @@ def only_session(catalog: CatalogService) -> SessionSummary:
 
 
 def trash_with(catalog: CatalogService, trash_root: Path, summary: SessionSummary) -> object:
-    service = TrashService(root=trash_root, is_active=catalog.is_active, now=lambda: NOW)
+    service = TrashService(
+        root=trash_root, is_active=catalog.is_active, now=lambda: NOW, retention_days=RETENTION_DAYS
+    )
     return service.trash(summary)
 
 
@@ -84,7 +87,9 @@ def test_a_codex_session_written_moments_ago_is_refused_and_nothing_changes(
     modified_at = NOW - timedelta(minutes=1)
     os.utime(rollout, (modified_at.timestamp(), modified_at.timestamp()))
     provider = CodexProvider(
-        root=codex_tree.root, active_threshold_minutes=CODEX_THRESHOLD_MINUTES, now=lambda: NOW
+        root=codex_tree.root,
+        active_threshold_minutes=CODEX_THRESHOLD_MINUTES,
+        now=lambda: NOW,
     )
     catalog = CatalogService([provider])
     summary = only_session(catalog)
@@ -135,7 +140,9 @@ def test_the_refusal_messages_tell_the_user_what_to_do(
     add_claude_session(claude_tree)
     catalog = claude_catalog(claude_tree, running=NOT_RUNNING)
     summary = only_session(catalog)
-    service = TrashService(root=trash_root, is_active=lambda _: True, now=lambda: NOW)
+    service = TrashService(
+        root=trash_root, is_active=lambda _: True, now=lambda: NOW, retention_days=RETENTION_DAYS
+    )
 
     result = service.trash(summary)
 
