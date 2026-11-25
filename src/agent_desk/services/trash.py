@@ -10,6 +10,7 @@ from pathlib import Path
 
 from agent_desk.domain.errors import TrashError
 from agent_desk.domain.models import Session, SessionSummary, TrashEntry, TrashItem
+from agent_desk.services.file_move import move_path
 from agent_desk.services.trash_manifest import (
     MANIFEST_FILE_NAME,
     ManifestError,
@@ -25,10 +26,6 @@ FIRST_DUPLICATE_SUFFIX = 2
 type Clock = Callable[[], datetime]
 type Mover = Callable[[Path, Path], None]
 type ActivityCheck = Callable[[Session], bool]
-
-
-def move_path(source: Path, target: Path) -> None:
-    source.rename(target)
 
 
 @dataclass(frozen=True)

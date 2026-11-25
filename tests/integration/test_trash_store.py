@@ -9,7 +9,8 @@ from agent_desk.domain.models import SessionSummary, TrashEntry, TrashItem
 from agent_desk.providers.claude_code import ClaudeCodeProvider
 from agent_desk.providers.codex import CodexProvider
 from agent_desk.services.catalog import CatalogService
-from agent_desk.services.trash import Mover, TrashService, move_path
+from agent_desk.services.file_move import move_path
+from agent_desk.services.trash import Mover, TrashService
 from fixtures.claude_tree import ClaudeTree, custom_title_line, user_line
 from fixtures.codex_tree import CodexTree, user_message
 from fixtures.file_tree import snapshot
