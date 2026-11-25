@@ -183,8 +183,10 @@ def test_a_session_that_already_has_an_entry_is_refused_and_nothing_moves(
     claude_tree: ClaudeTree, trash_root: Path
 ) -> None:
     summary = add_claude_session(claude_tree)
+    # Fails on the first item: the entry exists but the session is still in place.
+    first_item = FailingMove(fail_on=f"{SESSION_ID}.jsonl")
     with pytest.raises(OSError, match="simulated failure"):
-        make_service(trash_root, move=FailingMove(fail_on=SESSION_ID)).trash(summary)
+        make_service(trash_root, move=first_item).trash(summary)
     before = snapshot(claude_tree.root), snapshot(trash_root)
 
     result = make_service(trash_root).trash(summary)

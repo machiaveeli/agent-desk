@@ -36,6 +36,14 @@ class TrashService:
 
     def trash(self, summary: SessionSummary) -> TrashEntry | TrashError:
         session = summary.session
+        missing = next((path for path in session.files() if not path.exists()), None)
+        if missing is not None:
+            return TrashError("not_found", f"{missing.name} no longer exists.")
+        if self.is_active(session):
+            return TrashError(
+                "session_active",
+                "the session is still open; close it before moving it to the trash.",
+            )
         if self.find_entry(session) is not None:
             return TrashError(
                 "already_trashed", "this session already has a trash entry; restore it first."
