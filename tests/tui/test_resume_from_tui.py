@@ -9,8 +9,6 @@ from pathlib import Path
 import pytest
 from textual.coordinate import Coordinate
 from textual.drivers.headless_driver import HeadlessDriver
-from textual.message import Message
-from textual.notifications import Notify
 from textual.widgets import DataTable
 
 from agent_desk.providers.base import Provider
@@ -23,6 +21,7 @@ from agent_desk.tui.confirm_screen import ConfirmScreen
 from agent_desk.tui.sessions_screen import SessionsScreen
 from fixtures.claude_tree import ClaudeTree, custom_title_line, user_line
 from fixtures.codex_tree import CodexTree, user_message
+from fixtures.tui_app import NotificationRecorder, make_unusable_trash
 
 SESSION_A = "00000000-0000-4000-8000-00000000000a"
 SESSION_B = "00000000-0000-4000-8000-00000000000b"
@@ -70,20 +69,12 @@ def cwd(tmp_path: Path) -> Path:
     return path
 
 
-class NotificationRecorder:
-    def __init__(self) -> None:
-        self.messages: list[tuple[str, str]] = []
-
-    def __call__(self, message: Message) -> None:
-        if isinstance(message, Notify):
-            self.messages.append((message.notification.message, message.notification.severity))
-
-
 def make_app(
     providers: list[Provider], launcher: RecordingLauncher, executables: dict[str, str]
 ) -> AgentDeskApp:
     catalog = CatalogService(providers)
-    return AgentDeskApp(catalog, ResumeService(catalog, executables.get, launcher))
+    resume = ResumeService(catalog, executables.get, launcher)
+    return AgentDeskApp(catalog, resume, make_unusable_trash(catalog))
 
 
 def make_claude_app(

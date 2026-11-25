@@ -9,7 +9,7 @@ Tools like the Claude Code CLI and the Codex CLI store every session as plain fi
 **Early development. Not usable yet.**
 
 What works today (Claude Code and Codex; only the trash moves files):
-- `agent-desk` with no command opens the dashboard: every project in one table, with a text filter (`/`). Enter opens a project's sessions, which sort by date or size (`s`) and filter by title or date; running sessions are marked `active`. Enter on a session shows its condensed transcript (your messages, the replies, and one line per tool call), loaded in the background. `r` resumes the selected session in its own CLI (it asks first if the session is open somewhere else) and brings you back to the same place when you exit. Escape goes back, `?` shows the keys, `q` quits.
+- `agent-desk` with no command opens the dashboard: every project in one table, with a text filter (`/`). Enter opens a project's sessions, which sort by date or size (`s`) and filter by title or date; running sessions are marked `active`. Enter on a session shows its condensed transcript (your messages, the replies, and one line per tool call), loaded in the background. `r` resumes the selected session in its own CLI (it asks first if the session is open somewhere else) and brings you back to the same place when you exit. `space` marks sessions and `d` moves the marked ones (or the selected one) to the app trash, after showing their titles and asking; open sessions are left out. `t` on the projects screen opens the trash, where `u` restores the selected entry. Escape goes back, `?` shows the keys, `q` quits.
 - `agent-desk projects`: every project with its session count, last activity, and size.
 - `agent-desk sessions --project <path>`: the sessions of one project (`.` for the current folder).
 - `--provider claude-code` or `--provider codex` on both commands shows only that CLI.
@@ -22,8 +22,6 @@ What works today (Claude Code and Codex; only the trash moves files):
 Codex sessions are read from `~/.codex/sessions` (or `$CODEX_HOME`). Compressed (`.jsonl.zst`) and archived sessions are not shown yet.
 
 Planned for the first release:
-- A terminal dashboard, including a condensed transcript of each session.
-- Move sessions to an app trash and restore them.
 - Manage memory files.
 - Find orphan projects and large folders, and clean them up with a preview.
 

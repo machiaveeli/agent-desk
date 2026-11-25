@@ -10,10 +10,11 @@ from textual.coordinate import Coordinate
 from textual.widgets import DataTable
 
 from agent_desk.display import format_moment, format_project_label, format_size, format_title
-from agent_desk.domain.errors import ResumeError
+from agent_desk.domain.errors import ResumeError, TrashError
 from agent_desk.domain.models import Project, SessionSummary
 from agent_desk.services.catalog import CatalogService, sort_most_recent_first
 from agent_desk.services.resume import ResumePlan, ResumeService
+from agent_desk.services.trash import TrashService
 from agent_desk.tui.confirm_screen import ConfirmScreen
 from agent_desk.tui.table_screen import TableRow, TableScreen
 from agent_desk.tui.transcript_screen import TranscriptScreen
@@ -21,6 +22,9 @@ from agent_desk.tui.transcript_screen import TranscriptScreen
 type SortOrder = Literal["date", "size"]
 
 ACTIVE_LABEL = "active"
+MARK_LABEL = "✓"
+# The confirmation lists at most this many titles, so the dialog fits on screen.
+MAX_TITLES_IN_QUESTION = 8
 ACTIVE_SESSION_QUESTION = (
     "This session is open in another terminal. Two copies may overwrite each other.\n\n"
     "Resume it anyway?"
@@ -34,17 +38,23 @@ class SessionsScreen(TableScreen):
     BINDINGS: ClassVar[list[BindingType]] = [
         Binding("s", "toggle_sort", "Sort by date/size"),
         Binding("r", "resume", "Resume"),
+        Binding("space", "toggle_mark", "Mark"),
+        Binding("d", "trash", "Trash"),
     ]
     COLUMNS = ("State", "Title", "Started", "Ended", "Size")
     FILTER_PLACEHOLDER = "Filter by title or date, e.g. 2026-01 (press /)"
 
-    def __init__(self, catalog: CatalogService, resume: ResumeService, project: Project) -> None:
+    def __init__(
+        self, catalog: CatalogService, resume: ResumeService, trash: TrashService, project: Project
+    ) -> None:
         super().__init__()
         self.catalog = catalog
         self.resume = resume
+        self.trash = trash
         self.project = project
         self.summaries: list[SessionSummary] = []
         self.active_ids: set[str] = set()
+        self.marked_ids: set[str] = set()
         self.session_order: SortOrder = "date"
 
     def load(self) -> None:
@@ -67,7 +77,8 @@ class SessionsScreen(TableScreen):
                 yield str(index), self.format_session_row(summary)
 
     def leave(self) -> None:
-        self.app.pop_screen()
+        # dismiss, not pop_screen: the projects screen reloads in its callback.
+        self.dismiss()
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         summary = self.summaries[int(str(event.row_key.value))]
@@ -122,6 +133,64 @@ class SessionsScreen(TableScreen):
                 table.move_cursor(row=table.get_row_index(str(index)))
                 return
 
+    def action_toggle_mark(self) -> None:
+        summary = self.selected_summary()
+        if summary is None:
+            return
+        session_id = summary.session.session_id
+        self.marked_ids.symmetric_difference_update({session_id})
+        self.show_rows()
+        self.select_session(session_id)
+
+    def action_trash(self) -> None:
+        """Trashes the marked sessions, or the selected one when none is marked. Open sessions
+        are left out with a warning; the rest go only after a yes."""
+        targets = self.trash_targets()
+        open_count = sum(summary.session.session_id in self.active_ids for summary in targets)
+        if open_count:
+            self.notify(
+                f"Skipped {open_count} open sessions: close them before moving them to the trash.",
+                severity="warning",
+                markup=False,
+            )
+        to_trash = [
+            summary for summary in targets if summary.session.session_id not in self.active_ids
+        ]
+        if not to_trash:
+            return
+
+        def trash_if_confirmed(is_confirmed: bool | None) -> None:
+            if is_confirmed:
+                self.move_to_trash(to_trash)
+
+        self.app.push_screen(ConfirmScreen(describe_trash_question(to_trash)), trash_if_confirmed)
+
+    def trash_targets(self) -> list[SessionSummary]:
+        marked = [
+            summary for summary in self.summaries if summary.session.session_id in self.marked_ids
+        ]
+        if marked:
+            return marked
+        selected = self.selected_summary()
+        return [] if selected is None else [selected]
+
+    def move_to_trash(self, summaries: list[SessionSummary]) -> None:
+        moved = 0
+        for summary in summaries:
+            result = self.trash.trash(summary)
+            if isinstance(result, TrashError):
+                title = format_title(summary.title)
+                self.notify(
+                    f"Cannot trash '{title}': {result.detail}", severity="error", markup=False
+                )
+                continue
+            moved += 1
+        if moved:
+            self.notify(f"Moved {moved} sessions to the trash.", markup=False)
+        self.marked_ids.clear()
+        self.load()
+        self.show_rows()
+
     def action_toggle_sort(self) -> None:
         self.session_order = "size" if self.session_order == "date" else "date"
         self.summaries = sort_sessions(self.summaries, self.session_order)
@@ -132,14 +201,28 @@ class SessionsScreen(TableScreen):
         self.sub_title = f"{format_project_label(self.project)} · sorted by {self.session_order}"
 
     def format_session_row(self, summary: SessionSummary) -> tuple[str, ...]:
-        is_active = summary.session.session_id in self.active_ids
+        session_id = summary.session.session_id
+        state = [MARK_LABEL] if session_id in self.marked_ids else []
+        state += [ACTIVE_LABEL] if session_id in self.active_ids else []
         return (
-            ACTIVE_LABEL if is_active else "",
+            " ".join(state),
             format_title(summary.title),
             format_moment(summary.started_at, None),
             format_moment(summary.ended_at, None),
             format_size(summary.size_bytes),
         )
+
+
+def describe_trash_question(summaries: list[SessionSummary]) -> str:
+    titles = [f"  {format_title(summary.title)}" for summary in summaries[:MAX_TITLES_IN_QUESTION]]
+    hidden = len(summaries) - MAX_TITLES_IN_QUESTION
+    if hidden > 0:
+        titles.append(f"  and {hidden} more")
+    return (
+        f"Move {len(summaries)} sessions to the trash?\n\n"
+        + "\n".join(titles)
+        + "\n\nThey can be restored from the trash (t on the projects screen)."
+    )
 
 
 def matches_filter(summary: SessionSummary, filter_text: str) -> bool:
